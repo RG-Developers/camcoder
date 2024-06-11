@@ -39,7 +39,6 @@ function ccr_file:WriteSection(sID, sDT)
 	local sec = {s_id=sID, s_sz=#sDT, s_dt=sDT, buf=buffer.New()}
 	if ccr.sections[sec.s_id]["write"] then sec = ccr.sections[sec.s_id]["write"](sec) end
 	self.sections[self.s_ptr] = base.section.Create(sec.s_id, sec.s_sz, sec.s_dt)
-	self:UpdateData()
 end
 
 function ccr_file:SeekSection(p)
@@ -105,15 +104,38 @@ ccr.sections[0x03] = {}
 ccr.sections[0x03].read = function(section)
 	section.data = {}
 	section.data.move = section.buf:ReadVECTOR()
-	section.data.pos = section.buf:ReadVECTOR()
-	section.data.angles = section.buf:ReadANGLE()
 	return section
 end
 ccr.sections[0x03].write = function(section)
 	section.data = section.s_dt
 	section.buf:WriteVECTOR(section.data.move)
-	section.buf:WriteVECTOR(section.data.pos)
+	section.s_dt = section.buf.data
+	section.s_sz = #section.buf.data
+	return section
+end
+ccr.sections[0x04] = {}
+ccr.sections[0x04].read = function(section)
+	section.data = {}
+	section.data.angles = section.buf:ReadANGLE()
+	return section
+end
+ccr.sections[0x04].write = function(section)
+	section.data = section.s_dt
 	section.buf:WriteANGLE(section.data.angles)
+	section.s_dt = section.buf.data
+	section.s_sz = #section.buf.data
+	return section
+end
+ccr.sections[0x05] = {}
+ccr.sections[0x05].read = function(section)
+	section.data = {}
+	section.data.buttons = section.buf:ReadUINT16() + bit.lshift(section.buf:ReadUINT16(), 16)
+	return section
+end
+ccr.sections[0x05].write = function(section)
+	section.data = section.s_dt
+	section.buf:WriteUINT16(bit.band(section.data.buttons, 65535))
+	section.buf:WriteUINT16(bit.band(bit.rshift(section.data.buttons, 16), 65535))
 	section.s_dt = section.buf.data
 	section.s_sz = #section.buf.data
 	return section
@@ -148,16 +170,17 @@ function ccr_file:Stop()
 	end
 
 	if self.replaying then
-		hook.Remove("SetupMove", "CamCoder_Player_"..self.bot.name)
+		hook.Remove("StartCommand", "CamCoder_Player_"..self.bot.name)
 		self.bot:Kick("Early stop")
 		self.bot = nil
 		self.replaying = false
 		return
 	end
 
-	hook.Remove("SetupMove", "CamCoder_Recorder_"..self.ply:Name())
+	hook.Remove("StartCommand", "CamCoder_Recorder_"..self.ply:Name())
 	self.ply = nil
 	self.recording = false
+	self:UpdateData()
 end
 
 function ccr_file:Record(ply_to_rec)
@@ -182,13 +205,25 @@ function ccr_file:Record(ply_to_rec)
 		angles = self.ply:EyeAngles()
 	})
 
-	hook.Add("SetupMove", "CamCoder_Recorder_"..ply_to_rec:Name(), function(ply, move, cmd)
+	local laststate = {}
+	hook.Add("StartCommand", "CamCoder_Recorder_"..ply_to_rec:Name(), function(ply, cmd)
 		if ply ~= ply_to_rec then return end
-		if move:GetForwardSpeed() ~= 0 or move:GetSideSpeed() ~= 0 or move:GetUpSpeed() ~= 0 then
+		if Vector(cmd:GetForwardMove(), cmd:GetSideMove(), cmd:GetUpMove()) ~= laststate.move then
+			laststate.move = Vector(cmd:GetForwardMove(), cmd:GetSideMove(), cmd:GetUpMove())
 			self:WriteSection(0x03, {
-				move = Vector(move:GetForwardSpeed(), move:GetSideSpeed(), move:GetUpSpeed()),
-				pos = ply:GetPos(),
-				angles = ply:EyeAngles()
+				move = laststate.move
+			})
+		end
+		if ply:EyeAngles() ~= laststate.angles then
+			laststate.angles = ply:EyeAngles()
+			self:WriteSection(0x04, {
+				angles = laststate.angles
+			})
+		end
+		if cmd:GetButtons() ~= laststate.buttons then
+			laststate.buttons = cmd:GetButtons()
+			self:WriteSection(0x05, {
+				buttons = laststate.buttons
 			})
 		end
 		self:WriteSection(0x02, {})
@@ -216,8 +251,6 @@ function ccr_file:Play()
 
 	local initialiser = self:ReadSection()
 
-	PrintTable(initialiser)
-
 	self.bot:SetModel(initialiser.data.model)
 	self.bot:SetPlayerColor(initialiser.data.pcolor)
 	self.bot:SetWeaponColor(initialiser.data.wcolor)
@@ -226,18 +259,22 @@ function ccr_file:Play()
 
 	local function fail(message)
 		bot:Kick("Runtime error")
-		hook.Remove("SetupMove", "CamCoder_Player_"..name)
+		hook.Remove("StartCommand", "CamCoder_Player_"..name)
 		return error(message)
 	end
 
-	hook.Add("SetupMove", "CamCoder_Player_"..name, function(ply, move, cmd)
+	local laststate = {}
+	hook.Add("StartCommand", "CamCoder_Player_"..name, function(ply, cmd)
 		if ply ~= bot then return end
 
 		if self:TellSection() >= #self.sections then
 			bot:Kick("Recording ended.")
-			hook.Remove("SetupMove", "CamCoder_Player_"..name)
+			hook.Remove("StartCommand", "CamCoder_Player_"..name)
 			return
 		end
+
+		cmd:ClearButtons()
+		cmd:ClearMovement()
 
 		local done = false
 		while not done do
@@ -247,11 +284,23 @@ function ccr_file:Play()
 				done = true
 			end
 			if section.s_id == 0x03 then
-				move:SetForwardSpeed(section.data.move.x)
-				move:SetSideSpeed(section.data.move.y)
-				move:SetUpSpeed(section.data.move.z)
-				bot:SetAngles(section.data.angles)
+				laststate.move = section.data.move
 			end
+			if section.s_id == 0x04 then
+				laststate.angles = section.data.angles
+				ply:SetEyeAngles(laststate.angles)
+			end
+			if section.s_id == 0x05 then
+				laststate.buttons = section.data.buttons
+			end
+		end
+		if laststate.move then
+			cmd:SetForwardMove(laststate.move.x)
+			cmd:SetSideMove(laststate.move.y)
+			cmd:SetUpMove(laststate.move.z)
+		end
+		if laststate.buttons then
+			cmd:SetButtons(laststate.buttons)
 		end
 	end)
 end
@@ -306,9 +355,11 @@ if CLIENT then
 	end
 	net.Receive("ccr_protocol", function()
 		local req = net.ReadString()
+		local ndata = net.ReadTable()
 		for k,v in pairs(requests) do
 			if v[1] == req then
-				v[3](v[1], v[2], net.ReadTable())
+				v[3](v[1], v[2], ndata)
+				requests[k] = nil
 			end
 		end
 	end)
