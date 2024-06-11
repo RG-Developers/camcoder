@@ -8,7 +8,6 @@ local ccr_file = {s_ptr=0}
 
 function ccr.FromRAW(raw)
 	local f = base.file.FromRAW(raw)
-	PrintTable(f)
 	if f.sections[1].s_id ~= 0 then
 		return error("Invalid sID in header: "..f.sections[1].s_id)
 	end
@@ -29,7 +28,9 @@ end
 function ccr_file:ReadSection()
 	self.s_ptr = self.s_ptr + 1
 	local sec = self.sections[self.s_ptr]
+	sec.buf:Seek(0)
 	if ccr.sections[sec.s_id]["read"] then sec = ccr.sections[sec.s_id]["read"](sec) end
+	sec.buf:Seek(0)
 	return sec
 end
 
@@ -98,8 +99,40 @@ ccr.sections[0x01].write = function(section)
 	return section
 end
 ccr.sections[0x02] = {}
-ccr.sections[0x02].read = function(s) s.s_dt = "" s.s_sz = 0 end
-ccr.sections[0x02].write = function(s) s.s_dt = "" s.s_sz = 0 end
+ccr.sections[0x02].read = function(s) s.s_dt = "" s.s_sz = 0 return s end
+ccr.sections[0x02].write = function(s) s.s_dt = "" s.s_sz = 0 return s end
+ccr.sections[0x03] = {}
+ccr.sections[0x03].read = function(section)
+	section.data = {}
+	section.data.move = section.buf:ReadVECTOR()
+	section.data.pos = section.buf:ReadVECTOR()
+	section.data.angles = section.buf:ReadANGLE()
+	return section
+end
+ccr.sections[0x03].write = function(section)
+	section.data = section.s_dt
+	section.buf:WriteVECTOR(section.data.move)
+	section.buf:WriteVECTOR(section.data.pos)
+	section.buf:WriteANGLE(section.data.angles)
+	section.s_dt = section.buf.data
+	section.s_sz = #section.buf.data
+	return section
+end
+--[[
+ccr.sections[sID] = {}
+ccr.sections[sID].read = function(section)
+	section.data = {}
+	-- read
+	return section
+end
+ccr.sections[sID].write = function(section)
+	section.data = section.s_dt
+	-- write
+	section.s_dt = section.buf.data
+	section.s_sz = #section.buf.data
+	return section
+end
+]]
 
 --====================================================--
 
@@ -152,10 +185,74 @@ function ccr_file:Record(ply_to_rec)
 	hook.Add("SetupMove", "CamCoder_Recorder_"..ply_to_rec:Name(), function(ply, move, cmd)
 		if ply ~= ply_to_rec then return end
 		if move:GetForwardSpeed() ~= 0 or move:GetSideSpeed() ~= 0 or move:GetUpSpeed() ~= 0 then
-			--self:WriteFrame("move", {Vector(move:GetForwardSpeed(), move:GetSideSpeed(), move:GetUpSpeed()), ply:GetPos(), ply:EyeAngles()})
+			self:WriteSection(0x03, {
+				move = Vector(move:GetForwardSpeed(), move:GetSideSpeed(), move:GetUpSpeed()),
+				pos = ply:GetPos(),
+				angles = ply:EyeAngles()
+			})
 		end
 		self:WriteSection(0x02, {})
-		--self:WriteFrame("delim", {})
+	end)
+end
+
+function ccr_file:Play()
+	if not SERVER then
+		return error("RECORD:Play() should be called on SERVER!")
+	end
+	if game.SinglePlayer() then
+		return error("RECORD:Play() should be called in MULTIPLAYER!")
+	end
+	self:SeekSection(1)
+
+	local name = "Camcoder bot "..math.random(10000,99999)
+	local bot = player.CreateNextBot(name)
+	if not bot then
+		return error("RECORD:Play() has failed to create a bot!")
+	end
+
+	self.bot = bot
+	self.bot.name = name
+	self.replaying = true
+
+	local initialiser = self:ReadSection()
+
+	PrintTable(initialiser)
+
+	self.bot:SetModel(initialiser.data.model)
+	self.bot:SetPlayerColor(initialiser.data.pcolor)
+	self.bot:SetWeaponColor(initialiser.data.wcolor)
+	self.bot:SetPos(initialiser.data.pos)
+	self.bot:SetEyeAngles(initialiser.data.angles)
+
+	local function fail(message)
+		bot:Kick("Runtime error")
+		hook.Remove("SetupMove", "CamCoder_Player_"..name)
+		return error(message)
+	end
+
+	hook.Add("SetupMove", "CamCoder_Player_"..name, function(ply, move, cmd)
+		if ply ~= bot then return end
+
+		if self:TellSection() >= #self.sections then
+			bot:Kick("Recording ended.")
+			hook.Remove("SetupMove", "CamCoder_Player_"..name)
+			return
+		end
+
+		local done = false
+		while not done do
+			local section = self:ReadSection()
+
+			if section.s_id == 0x02 then
+				done = true
+			end
+			if section.s_id == 0x03 then
+				move:SetForwardSpeed(section.data.move.x)
+				move:SetSideSpeed(section.data.move.y)
+				move:SetUpSpeed(section.data.move.z)
+				bot:SetAngles(section.data.angles)
+			end
+		end
 	end)
 end
 
@@ -191,7 +288,6 @@ if SERVER then
 			if succ then
 				return ccr.Reply(ply, "stop", {"ok"})
 			end
-			print("ERROR: ", varg)
 			return ccr.Reply(ply, "stop", {"fail", varg})
 		end
 	end)
