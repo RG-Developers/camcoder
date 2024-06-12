@@ -97,8 +97,9 @@ function buffer:WriteSSTRING(str)
 end
 
 function buffer:ReadSSTRING()
-	local str = self:ReadRAW(self:ReadUINT8())
-	return string.sub(str, 0, #str-1)
+	local len = self:ReadUINT8()
+	local str = self:ReadRAW(len)
+	return string.sub(str, 0, len)
 end
 
 function buffer:WriteBSTRING(str)
@@ -110,8 +111,9 @@ function buffer:WriteBSTRING(str)
 end
 
 function buffer:ReadBSTRING()
-	local str = self:ReadRAW(self:ReadUINT16())
-	return string.sub(str, 0, #str-1)
+	local len = self:ReadUINT16()
+	local str = self:ReadRAW(len)
+	return string.sub(str, 0, len)
 end
 
 function buffer:WriteFLOAT32(x)

@@ -29,7 +29,7 @@ function ccr_file:ReadSection()
 	self.s_ptr = self.s_ptr + 1
 	local sec = self.sections[self.s_ptr]
 	sec.buf:Seek(0)
-	if ccr.sections[sec.s_id]["read"] then sec = ccr.sections[sec.s_id]["read"](sec) end
+	if ccr.sections[sec.s_id] and ccr.sections[sec.s_id]["read"] then sec = ccr.sections[sec.s_id]["read"](sec) end
 	sec.buf:Seek(0)
 	return sec
 end
@@ -166,6 +166,19 @@ ccr.sections[0x07].write = function(section)
 	section.s_sz = #section.buf.data
 	return section
 end
+ccr.sections[0x08] = {}
+ccr.sections[0x08].read = function(section)
+	section.data = {}
+	section.data.weapon = section.buf:ReadBSTRING()
+	return section
+end
+ccr.sections[0x08].write = function(section)
+	section.data = section.s_dt
+	section.buf:WriteBSTRING(section.data.weapon)
+	section.s_dt = section.buf.data
+	section.s_sz = #section.buf.data
+	return section
+end
 --[[
 ccr.sections[sID] = {}
 ccr.sections[sID].read = function(section)
@@ -244,12 +257,6 @@ function ccr_file:Record(ply_to_rec)
 	local laststate = {}
 	hook.Add("StartCommand", "CamCoder_Recorder_"..ply_to_rec:Name(), function(ply, cmd)
 		if ply ~= ply_to_rec then return end
-		if laststate.pos ~= ply:GetPos() then
-			laststate.pos = ply:GetPos()
-			self:WriteSection(0x07, {
-				pos = laststate.pos
-			})
-		end
 		if Vector(cmd:GetForwardMove(), cmd:GetSideMove(), cmd:GetUpMove()) ~= laststate.move then
 			laststate.move = Vector(cmd:GetForwardMove(), cmd:GetSideMove(), cmd:GetUpMove())
 			self:WriteSection(0x03, {
@@ -272,6 +279,18 @@ function ccr_file:Record(ply_to_rec)
 			laststate.impulse = cmd:GetImpulse()
 			self:WriteSection(0x06, {
 				impulse = laststate.impulse
+			})
+		end
+		if laststate.pos ~= ply:GetPos() then
+			laststate.pos = ply:GetPos()
+			self:WriteSection(0x07, {
+				pos = laststate.pos
+			})
+		end
+		if laststate.weapon ~= ply:GetActiveWeapon():GetClass() then
+			laststate.weapon = ply:GetActiveWeapon():GetClass()
+			self:WriteSection(0x08, {
+				weapon = laststate.weapon
 			})
 		end
 		self:WriteSection(0x02, {})
@@ -315,8 +334,8 @@ function ccr_file:Play()
 		end
 		local wep = self.bot:Give(wtable["weapon"][1])
 		if wep then
-			wep:SetClip1(wtable["weapon"][2])
-			wep:SetClip2(wtable["weapon"][3])
+			if wep.SetClip1 then wep:SetClip1(wtable["weapon"][2]) end
+			if wep.SetClip2 then wep:SetClip2(wtable["weapon"][3]) end
 		end
 	end
 	self.bot:SelectWeapon(initialiser.data.curweapon)
@@ -365,6 +384,13 @@ function ccr_file:Play()
 				laststate.impulse = section.data.impulse
 				cmd:SetImpulse(laststate.impulse)
 			end
+			if section.s_id == 0x07 then
+				laststate.pos = section.data.pos
+			end
+			if section.s_id == 0x08 then
+				laststate.weapon = section.data.weapon
+				cmd:SelectWeapon(ply:GetWeapon(laststate.weapon))
+			end
 		end
 		if laststate.move then
 			cmd:SetForwardMove(laststate.move.x)
@@ -385,13 +411,15 @@ if SERVER then
 	function ccr.Reply(who, req, data)
 		net.Start("ccr_protocol")
 			net.WriteString(req)
-			net.WriteTable(data)
+			local d = util.Compress(util.TableToJSON(data))
+			net.WriteUInt(#d, 16)
+			net.WriteData(d)
 		net.Send(who)
 	end
 	net.Receive("ccr_protocol", function(_, ply)
 		if not ply:IsListenServerHost() then return end
 		local req = net.ReadString()
-		local data = net.ReadTable()
+		local data = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
 		if req == "record" then
 			local succ, varg = pcall(function()
 				local handle = ccr.New()
@@ -435,12 +463,32 @@ if SERVER then
 				if not ply.ccr_handle then error("nothing was recorded") end
 				if ply.ccr_handle.recording or ply.ccr_handle.replaying then error("recording is being used") end
 				file.CreateDir("camcoder")
-				file.Write("camcoder/"..data[1]..".txt", ply.ccr_handle.buf.data)
+				file.Write("camcoder/"..ply:Name().."_"..data[1]..".txt", ply.ccr_handle.buf.data)
 			end)
 			if succ then
 				return ccr.Reply(ply, "save", {"ok"})
 			end
 			return ccr.Reply(ply, "save", {"fail", varg})
+		end
+		if req == "records" then
+			local files,_ = file.Find("camcoder/*", "DATA")
+			return ccr.Reply(ply, "records", files)
+		end
+		if req == "hash" then
+			return ccr.Reply(ply, "hash", {util.CRC(file.Read("camcoder/"..data[1]))})
+		end
+		if req == "fetch" then
+			ply.ccr_fetch_cnt = ccr.FromRAW(file.Read("camcoder/"..data[1]))
+			ply.ccr_fetch_cnt.buf:Seek(0)
+			return ccr.Reply(ply, "fetch", {})
+		end
+		if req == "fetch_c" then
+			if ply.ccr_fetch_cnt.buf:Tell() >= ply.ccr_fetch_cnt.buf.size then
+				return ccr.Reply(ply, "fetch_c", {"end"})
+			end
+			local d = ply.ccr_fetch_cnt.buf:ReadRAW(32)
+			ply.ccr_fetch_cnt.buf:ReadRAW(1)
+			return ccr.Reply(ply, "fetch_c", {"", d})
 		end
 	end)
 end
@@ -453,13 +501,15 @@ if CLIENT then
 		}
 		net.Start("ccr_protocol")
 			net.WriteString(req)
-			net.WriteTable(data)
+			local d = util.Compress(util.TableToJSON(data))
+			net.WriteUInt(#d, 16)
+			net.WriteData(d)
 		net.SendToServer()
 	end
 	net.Receive("ccr_protocol", function()
 		local req = net.ReadString()
-		local ndata = net.ReadTable()
-		for k,v in pairs(requests) do
+		local ndata = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
+		for k,v in pairs(table.Copy(requests)) do
 			if v[1] == req then
 				v[3](v[1], v[2], ndata)
 				requests[k] = nil
@@ -497,6 +547,38 @@ if CLIENT then
 			end
 			return fl_cb(reply)
 		end)
+	end
+	function ccr.ListRecords(cb)
+		ccr.Request("records", {}, function(req, _, reply)
+			cb(reply)
+		end)
+	end
+	function ccr.Fetch(f, callback)
+		local function _fetch()
+			notification.AddProgress("DownloadRecord_"..f, "Downloading recording "..f.."... 0B done")
+			ccr.Request("fetch", {f}, function(req, _, reply)
+				file.Write("camcoder/"..f, "")
+				local function cb(req, _, reply)
+					if reply[1] == "end" then notification.Kill("DownloadRecord_"..f) return callback() end
+					file.Append("camcoder/"..f, reply[2])
+					ccr.Request("fetch_c", {}, cb)
+					notification.AddProgress("DownloadRecord_"..f, "Downloading recording "..f.."... "..#file.Read("camcoder/"..f).."B done")
+				end
+				ccr.Request("fetch_c", {}, cb)
+			end)
+		end
+		if file.Exists("camcoder/"..f, "DATA") then
+			ccr.Request("hash", {f}, function(req, _, reply)
+				--if util.CRC(file.Read("camcoder/"..f)) == reply[1] then
+				--	callback()
+				--	return
+				--end
+				_fetch()
+				return
+			end)
+			return
+		end
+		_fetch()
 	end
 
 

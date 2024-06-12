@@ -15,7 +15,7 @@ end
 local function record_save(icon, window, ftime, sv_cb, bk_cb)
 	local cc_label = window:Add("DLabel")
 	cc_label:SetText("Saving scene. Recorded time: "..ftime)
-	cc_label:SetFont("Trebuchet24")
+	cc_label:SetFont("Trebuchet18")
 	cc_label:Dock(TOP)
 
 	local browser = window:Add("DFileBrowser")
@@ -151,10 +151,13 @@ local function rm(icon, window, main_menu_cb)
 	cc_fileselect:Dock(TOP)
 	cc_fileselect:SetMultiSelect(false)
 	cc_fileselect:AddColumn("Filename")
-	local files,_ = file.Find("camcoder/*", "DATA")
-	for _,file in pairs(files) do
-		cc_fileselect:AddLine(file)
-	end
+	cc_fileselect:AddLine("fetching...")
+	format.ListRecords(function(list)
+		cc_fileselect:RemoveLine(1)
+		for _,file in pairs(list) do
+			cc_fileselect:AddLine(file)
+		end
+	end)
 	local cc_label_selected = window:Add("DLabel")
 	cc_label_selected:SetText("Selected")
 	cc_label_selected:SetFont("Trebuchet18")
@@ -167,9 +170,12 @@ local function rm(icon, window, main_menu_cb)
 
 	function cc_fileselect:OnRowSelected(index, pnl)
 		local rname = pnl:GetColumnText(1)
+		if rname == "fetching..." then return end
 		cc_fileselected:AddLine(rname)
 		cc_fileselect:RemoveLine(index)
-		selected[rname] = format.FromRAW(file.Read("camcoder/"..rname, "DATA")):PlayPreview()
+		format.Fetch(rname, function()
+			selected[rname] = format.FromRAW(file.Read("camcoder/"..rname, "DATA")):PlayPreview()
+		end)
 	end
 	function cc_fileselected:OnRowSelected(index, pnl)
 		local rname = pnl:GetColumnText(1)
