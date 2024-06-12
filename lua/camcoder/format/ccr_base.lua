@@ -21,7 +21,8 @@ function ccr_file.FromRAW(raw)
 	while this.buf:Tell() < #this.buf.data do
 		local sID = this.buf:ReadUINT8()
 		local sSZ = this.buf:ReadUINT16()
-		local sDT = this.buf:ReadRAW(sSZ)
+		local sDT = this.buf:ReadRAW(sSZ-1)
+		this.buf:ReadRAW(1)
 		this.sections[#this.sections+1] = ccr_section.Create(sID, sSZ, sDT)
 	end
 	return this

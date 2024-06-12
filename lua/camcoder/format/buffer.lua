@@ -1,6 +1,7 @@
 local buffer = {data="", size=0, pointer=0}
 
 local function expect(arg, typ)
+	if type(arg)~=typ then debug.Trace() end
 	assert(type(arg)==typ, "expected "..typ..", got "..type(arg))
 end
 
