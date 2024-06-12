@@ -405,7 +405,7 @@ if SERVER then
 			return ccr.Reply(ply, "record", {"fail", varg})
 		end
 		if req == "play" then
-			for _,v in pairs(records) do v:Stop() end
+			for _,v in pairs(records) do pcall(function() v:Stop() end) end
 			records = {}
 			local succ, varg = pcall(function()
 				for _,f in pairs(data) do
@@ -525,11 +525,9 @@ if CLIENT then
 		end
 
 		local laststate = {}
-		local last = 0
 		hook.Add("StartCommand", hname, function(ply, cmd)
 			if ply ~= LocalPlayer() then return end
-			if CurTime() - last < 0.015 then return end
-			last = CurTime()
+			if not IsFirstTimePredicted() then return end
 			self.bot:SetColor(Color(255, 255, 255, math.random(200, 255)))
 
 			if self:TellSection() >= #self.sections then
