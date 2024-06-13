@@ -72,6 +72,7 @@ ccr.sections[0x01].read = function(section)
 	section.data.curweapon = section.buf:ReadBSTRING()
 	section.data.pos = section.buf:ReadVECTOR()
 	section.data.angles = section.buf:ReadANGLE()
+	section.data.name = section.buf:ReadBSTRING()
 	return section
 end
 ccr.sections[0x01].write = function(section)
@@ -93,6 +94,7 @@ ccr.sections[0x01].write = function(section)
 	section.buf:WriteBSTRING(section.data.curweapon)
 	section.buf:WriteVECTOR(section.data.pos)
 	section.buf:WriteANGLE(section.data.angles)
+	section.buf:WriteBSTRING(section.data.name)
 	section.s_dt = section.buf.data
 	section.s_sz = #section.buf.data
 	return section
@@ -179,6 +181,19 @@ ccr.sections[0x08].write = function(section)
 	section.s_sz = #section.buf.data
 	return section
 end
+ccr.sections[0x09] = {}
+ccr.sections[0x09].read = function(section)
+	section.data = {}
+	section.data.text = section.buf:ReadBSTRING()
+	return section
+end
+ccr.sections[0x09].write = function(section)
+	section.data = section.s_dt
+	section.buf:WriteBSTRING(section.data.text)
+	section.s_dt = section.buf.data
+	section.s_sz = #section.buf.data
+	return section
+end
 --[[
 ccr.sections[sID] = {}
 ccr.sections[sID].read = function(section)
@@ -217,6 +232,7 @@ function ccr_file:Stop()
 	end
 
 	hook.Remove("StartCommand", "CamCoder_Recorder_"..self.ply:Name())
+	hook.Remove("PlayerSay", "CamCoder_Recorder_"..self.ply:Name())
 	self.ply = nil
 	self.recording = false
 	self:UpdateData()
@@ -251,12 +267,14 @@ function ccr_file:Record(ply_to_rec)
 		weapons = weps,
 		curweapon = self.ply:GetActiveWeapon():GetClass(),
 		pos = self.ply:GetPos(),
-		angles = self.ply:EyeAngles()
+		angles = self.ply:EyeAngles(),
+		name = self.ply:Nick()
 	})
 
 	local laststate = {}
 	hook.Add("StartCommand", "CamCoder_Recorder_"..ply_to_rec:Name(), function(ply, cmd)
 		if ply ~= ply_to_rec then return end
+		if not IsValid(ply_to_rec) then return end
 		if Vector(cmd:GetForwardMove(), cmd:GetSideMove(), cmd:GetUpMove()) ~= laststate.move then
 			laststate.move = Vector(cmd:GetForwardMove(), cmd:GetSideMove(), cmd:GetUpMove())
 			self:WriteSection(0x03, {
@@ -287,13 +305,20 @@ function ccr_file:Record(ply_to_rec)
 				pos = laststate.pos
 			})
 		end
-		if laststate.weapon ~= ply:GetActiveWeapon():GetClass() then
+		if IsValid(ply:GetActiveWeapon()) and laststate.weapon ~= ply:GetActiveWeapon():GetClass() then
 			laststate.weapon = ply:GetActiveWeapon():GetClass()
 			self:WriteSection(0x08, {
 				weapon = laststate.weapon
 			})
 		end
 		self:WriteSection(0x02, {})
+	end)
+	hook.Add("PlayerSay", "CamCoder_Recorder_"..ply_to_rec:Name(), function(ply, text)
+		if ply ~= ply_to_rec then return end
+		if not IsValid(ply_to_rec) then return end
+		self:WriteSection(0x09, {
+			text = text
+		})
 	end)
 end
 
@@ -307,7 +332,10 @@ function ccr_file:Play()
 	self:SeekSection(1)
 
 	local name = "Camcoder bot "..math.random(10000,99999)
-	local bot = player.CreateNextBot(name)
+
+	local initialiser = self:ReadSection()
+
+	local bot = player.CreateNextBot(initialiser.data.name.."ㅤ")
 	if not bot then
 		return error("RECORD:Play() has failed to create a bot!")
 	end
@@ -315,8 +343,6 @@ function ccr_file:Play()
 	self.bot = bot
 	self.bot.name = name
 	self.replaying = true
-
-	local initialiser = self:ReadSection()
 
 	self.bot:SetModel(initialiser.data.model)
 	self.bot:SetPlayerColor(initialiser.data.pcolor)
@@ -386,10 +412,22 @@ function ccr_file:Play()
 			end
 			if section.s_id == 0x07 then
 				laststate.pos = section.data.pos
+				if self.bot:GetPos():Distance(laststate.pos) > 50 then
+					self.bot:SetPos(laststate.pos)
+				end
 			end
 			if section.s_id == 0x08 then
 				laststate.weapon = section.data.weapon
 				cmd:SelectWeapon(ply:GetWeapon(laststate.weapon))
+			end
+			if section.s_id == 0x09 then
+				ply:SetNW2String("ccr_msg", section.data.text)
+				timer.Simple(0, function()
+					for _,p in pairs(player.GetAll()) do
+						p:SendLua([[chat.AddText(Color(255, 255, 0), "]]..ply:Nick():sub(0, #ply:Nick()-3)..[[: ", Color(255, 255, 255), Entity(]]..ply:EntIndex()..[[):GetNW2String("ccr_msg"))]])
+					end
+				end)
+				--MsgC(Color(255, 255, 0), ply:Nick()..": ", Color(255, 255, 255), section.data.text.."\n")
 			end
 		end
 		if laststate.move then
@@ -417,7 +455,7 @@ if SERVER then
 		net.Send(who)
 	end
 	net.Receive("ccr_protocol", function(_, ply)
-		if not ply:IsListenServerHost() then return end
+		--if not ply:IsListenServerHost() then return end
 		local req = net.ReadString()
 		local data = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
 		if req == "record" then
@@ -478,17 +516,18 @@ if SERVER then
 			return ccr.Reply(ply, "hash", {util.CRC(file.Read("camcoder/"..data[1]))})
 		end
 		if req == "fetch" then
-			ply.ccr_fetch_cnt = ccr.FromRAW(file.Read("camcoder/"..data[1]))
-			ply.ccr_fetch_cnt.buf:Seek(0)
-			return ccr.Reply(ply, "fetch", {})
+			ply.ccr_fetch_cnt = ply.ccr_fetch_cnt or {}
+			ply.ccr_fetch_cnt[data[1]] = ccr.FromRAW(file.Read("camcoder/"..data[1]))
+			ply.ccr_fetch_cnt[data[1]].buf:Seek(0)
+			return ccr.Reply(ply, "fetch", {data[1], ply.ccr_fetch_cnt[data[1]].buf.size})
 		end
 		if req == "fetch_c" then
-			if ply.ccr_fetch_cnt.buf:Tell() >= ply.ccr_fetch_cnt.buf.size then
-				return ccr.Reply(ply, "fetch_c", {"end"})
+			if ply.ccr_fetch_cnt[data[1]].buf:Tell() >= ply.ccr_fetch_cnt[data[1]].buf.size then
+				return ccr.Reply(ply, "fetch_c", {"end", "", data[1]})
 			end
-			local d = ply.ccr_fetch_cnt.buf:ReadRAW(32)
-			ply.ccr_fetch_cnt.buf:ReadRAW(1)
-			return ccr.Reply(ply, "fetch_c", {"", d})
+			local d = ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1024/4)
+			ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1)
+			return ccr.Reply(ply, "fetch_c", {"", d, data[1]})
 		end
 	end)
 end
@@ -511,8 +550,9 @@ if CLIENT then
 		local ndata = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
 		for k,v in pairs(table.Copy(requests)) do
 			if v[1] == req then
-				v[3](v[1], v[2], ndata)
-				requests[k] = nil
+				if v[3](v[1], v[2], ndata) ~= false then
+					requests[k] = nil
+				end
 			end
 		end
 	end)
@@ -557,14 +597,30 @@ if CLIENT then
 		local function _fetch()
 			notification.AddProgress("DownloadRecord_"..f, "Downloading recording "..f.."... 0B done")
 			ccr.Request("fetch", {f}, function(req, _, reply)
+				if reply[1] ~= f then return false end
+				local size = reply[2]
+				local done = 0
 				file.Write("camcoder/"..f, "")
 				local function cb(req, _, reply)
+					if reply[3] ~= f then return false end
 					if reply[1] == "end" then notification.Kill("DownloadRecord_"..f) return callback() end
 					file.Append("camcoder/"..f, reply[2])
-					ccr.Request("fetch_c", {}, cb)
-					notification.AddProgress("DownloadRecord_"..f, "Downloading recording "..f.."... "..#file.Read("camcoder/"..f).."B done")
+					done = done + #reply[2]
+					ccr.Request("fetch_c", {f}, cb)
+				    local done_fmt = done
+				    local u = ""
+				    for _,unit in pairs({"", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"}) do
+				    	u = unit
+				    	if math.abs(done_fmt) < 1024.0 then
+				    		break
+				    	end
+				    	done_fmt = done_fmt / 1024.0
+				    end
+				    done_fmt = string.format("%.2f", done_fmt)
+				    done_fmt = done_fmt..u.."B"
+					notification.AddProgress("DownloadRecord_"..f, "Downloading recording "..f.."... "..done_fmt.." done", done/size)
 				end
-				ccr.Request("fetch_c", {}, cb)
+				ccr.Request("fetch_c", {f}, cb)
 			end)
 		end
 		if file.Exists("camcoder/"..f, "DATA") then
@@ -607,9 +663,12 @@ if CLIENT then
 		end
 
 		local laststate = {}
+		local lastpause = 0
 		hook.Add("StartCommand", hname, function(ply, cmd)
 			if ply ~= LocalPlayer() then return end
-			if not IsFirstTimePredicted() then return end
+			if cmd:TickCount() == 0 then return end
+			if CurTime() - lastpause <= 0.01 then return end
+			lastpause = CurTime()
 			self.bot:SetColor(Color(255, 255, 255, math.random(200, 255)))
 
 			if self:TellSection() >= #self.sections then

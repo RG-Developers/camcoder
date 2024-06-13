@@ -9,10 +9,6 @@ list.Set("DesktopWindows", "Camcoder", {
 			LocalPlayer():ChatPrint("CamCoder is not available in single player sessions!")
 			return window:Close()
 		end
-		if not LocalPlayer():IsListenServerHost() then
-			LocalPlayer():ChatPrint("CamCoder is not available to non-server-hosts!")
-			return window:Close()
-		end
 		window:SetTitle("Camcoder")
 		window:SetSizable(false)
 		window:SetPos(ScrW()-window:GetWide(), 0)

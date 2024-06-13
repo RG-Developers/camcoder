@@ -13,6 +13,10 @@ local function mk_btn(window, text, dock, onclick)
 end
 
 local function rm(icon, window, main_menu_cb)
+	if not LocalPlayer():IsListenServerHost() then
+		LocalPlayer():ChatPrint("CamCoder player GUI is not available to non-server-hosts!")
+		return main_menu_cb(icon, window)
+	end
 	window:ShowCloseButton(false)
 	local selected = {}
 	local cc_tomenu = mk_btn(window, "Back to main menu", BOTTOM, function()
