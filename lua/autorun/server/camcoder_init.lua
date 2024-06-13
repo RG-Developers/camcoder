@@ -8,8 +8,9 @@ local cs_files = {
 	"camcoder/gui/menu_play.lua",
 	"camcoder/gui/menu_record.lua",
 	"camcoder/gui/utils.lua",
+	"camcoder/format/ccr_interface.lua"
 }
 
 for k,v in pairs(cs_files) do AddCSLuaFile(v) end
 
-include("camcoder/format/ccr_0000.lua")
+include("camcoder/format/ccr_interface.lua")

@@ -1,13 +1,28 @@
+local attempts = 0
+
 list.Set("DesktopWindows", "Camcoder", {
 	title		= "Camcoder",
 	icon		= "camcoder/gui/icon.png",
 	width		= ScrW()/3,
-	height		= ScrH(),
-	onewindow	= true,
+	height		= ScrH()/2,
+	onewindow	= false,
 	init		= function(icon, window)
-		if game.SinglePlayer() then
-			LocalPlayer():ChatPrint("CamCoder is not available in single player sessions!")
+		if game.SinglePlayer() and attempts < 13 then
+			attempts = attempts + 1
+			
+			if attempts > 8 then
+				LocalPlayer():ChatPrint("Just "..(14-attempts).." more times!")
+			else
+				LocalPlayer():ChatPrint("CamCoder is not available in single player sessions!")
+			end
+			if attempts == 5 then
+				LocalPlayer():ChatPrint("You can, hovewer, keep trying...")
+			end
 			return window:Close()
+		end
+		if game.SinglePlayer() and attempts == 13 then
+			attempts = attempts + 1
+			LocalPlayer():ChatPrint("Warranty void! Support is NOT provided for single player session use!!")
 		end
 		window:SetTitle("Camcoder")
 		window:SetSizable(false)

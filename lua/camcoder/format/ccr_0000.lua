@@ -377,6 +377,7 @@ function ccr_file:Play()
 	local laststate = {}
 	hook.Add("StartCommand", "CamCoder_Player_"..name, function(ply, cmd)
 		if ply ~= bot then return end
+		if not IsValid(bot) then return end
 
 		if self:TellSection() >= #self.sections then
 			bot:Kick("Recording ended.")
@@ -412,22 +413,22 @@ function ccr_file:Play()
 			end
 			if section.s_id == 0x07 then
 				laststate.pos = section.data.pos
-				if self.bot:GetPos():Distance(laststate.pos) > 50 then
+				if self.bot:GetPos():Distance(laststate.pos) > self.bot:GetMaxSpeed()*2 then
 					self.bot:SetPos(laststate.pos)
 				end
 			end
 			if section.s_id == 0x08 then
 				laststate.weapon = section.data.weapon
-				cmd:SelectWeapon(ply:GetWeapon(laststate.weapon))
+				if IsValid(ply:GetWeapon(laststate.weapon)) then
+					cmd:SelectWeapon(ply:GetWeapon(laststate.weapon))
+				end
 			end
 			if section.s_id == 0x09 then
-				ply:SetNW2String("ccr_msg", section.data.text)
-				timer.Simple(0, function()
-					for _,p in pairs(player.GetAll()) do
-						p:SendLua([[chat.AddText(Color(255, 255, 0), "]]..ply:Nick():sub(0, #ply:Nick()-3)..[[: ", Color(255, 255, 255), Entity(]]..ply:EntIndex()..[[):GetNW2String("ccr_msg"))]])
-					end
-				end)
-				--MsgC(Color(255, 255, 0), ply:Nick()..": ", Color(255, 255, 255), section.data.text.."\n")
+				net.Start("ccr_protocol_0000_u")
+					net.WriteString("chat")
+					net.WriteEntity(ply)
+					net.WriteString(section.data.text)
+				net.Broadcast()
 			end
 		end
 		if laststate.move then
@@ -441,203 +442,7 @@ function ccr_file:Play()
 	end)
 end
 
---====================================================--
-
-if SERVER then
-	util.AddNetworkString("ccr_protocol")
-	local records = {}
-	function ccr.Reply(who, req, data)
-		net.Start("ccr_protocol")
-			net.WriteString(req)
-			local d = util.Compress(util.TableToJSON(data))
-			net.WriteUInt(#d, 16)
-			net.WriteData(d)
-		net.Send(who)
-	end
-	net.Receive("ccr_protocol", function(_, ply)
-		--if not ply:IsListenServerHost() then return end
-		local req = net.ReadString()
-		local data = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
-		if req == "record" then
-			local succ, varg = pcall(function()
-				local handle = ccr.New()
-				handle:Record(ply)
-				return handle
-			end)
-			if succ then
-				ply.ccr_handle = varg
-				return ccr.Reply(ply, "record", {"ok"})
-			end
-			return ccr.Reply(ply, "record", {"fail", varg})
-		end
-		if req == "play" then
-			for _,v in pairs(records) do pcall(function() v:Stop() end) end
-			records = {}
-			local succ, varg = pcall(function()
-				for _,f in pairs(data) do
-					records[#records+1] = ccr.FromRAW(file.Read("camcoder/"..f, "DATA"))
-				end
-				for _,v in pairs(records) do v:Play() end
-			end)
-			if succ then
-				return ccr.Reply(ply, "play", {"ok"})
-			end
-			return ccr.Reply(ply, "play", {"fail", varg})
-		end
-		if req == "stop" then
-			local succ, varg = pcall(function()
-				if ply.ccr_handle then pcall(function() ply.ccr_handle:Stop() end) end
-				for k,v in pairs(records) do
-					pcall(function() v:Stop() end)
-				end
-			end)
-			if succ then
-				return ccr.Reply(ply, "stop", {"ok"})
-			end
-			return ccr.Reply(ply, "stop", {"fail", varg})
-		end
-		if req == "save" then
-			local succ, varg = pcall(function()
-				if not ply.ccr_handle then error("nothing was recorded") end
-				if ply.ccr_handle.recording or ply.ccr_handle.replaying then error("recording is being used") end
-				file.CreateDir("camcoder")
-				file.Write("camcoder/"..ply:Name().."_"..data[1]..".txt", ply.ccr_handle.buf.data)
-			end)
-			if succ then
-				return ccr.Reply(ply, "save", {"ok"})
-			end
-			return ccr.Reply(ply, "save", {"fail", varg})
-		end
-		if req == "records" then
-			local files,_ = file.Find("camcoder/*", "DATA")
-			return ccr.Reply(ply, "records", files)
-		end
-		if req == "hash" then
-			return ccr.Reply(ply, "hash", {util.CRC(file.Read("camcoder/"..data[1]))})
-		end
-		if req == "fetch" then
-			ply.ccr_fetch_cnt = ply.ccr_fetch_cnt or {}
-			ply.ccr_fetch_cnt[data[1]] = ccr.FromRAW(file.Read("camcoder/"..data[1]))
-			ply.ccr_fetch_cnt[data[1]].buf:Seek(0)
-			return ccr.Reply(ply, "fetch", {data[1], ply.ccr_fetch_cnt[data[1]].buf.size})
-		end
-		if req == "fetch_c" then
-			if ply.ccr_fetch_cnt[data[1]].buf:Tell() >= ply.ccr_fetch_cnt[data[1]].buf.size then
-				return ccr.Reply(ply, "fetch_c", {"end", "", data[1]})
-			end
-			local d = ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1024/4)
-			ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1)
-			return ccr.Reply(ply, "fetch_c", {"", d, data[1]})
-		end
-	end)
-end
-
 if CLIENT then
-	local requests = {}
-	function ccr.Request(req, data, cb)
-		requests[#requests+1] = {
-			req, data, cb
-		}
-		net.Start("ccr_protocol")
-			net.WriteString(req)
-			local d = util.Compress(util.TableToJSON(data))
-			net.WriteUInt(#d, 16)
-			net.WriteData(d)
-		net.SendToServer()
-	end
-	net.Receive("ccr_protocol", function()
-		local req = net.ReadString()
-		local ndata = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
-		for k,v in pairs(table.Copy(requests)) do
-			if v[1] == req then
-				if v[3](v[1], v[2], ndata) ~= false then
-					requests[k] = nil
-				end
-			end
-		end
-	end)
-	function ccr.StartRecord(ok_cb, fl_cb)
-		ccr.Request("record", {}, function(req, _, reply)
-			if reply[1] == "ok" then
-				return ok_cb(reply)
-			end
-			return fl_cb(reply)
-		end)
-	end
-	function ccr.Stop(ok_cb, fl_cb)
-		ccr.Request("stop", {}, function(req, _, reply)
-			if reply[1] == "ok" then
-				return ok_cb(reply)
-			end
-			return fl_cb(reply)
-		end)
-	end
-	function ccr.Save(fname, ok_cb, fl_cb)
-		ccr.Request("save", {fname}, function(req, _, reply)
-			if reply[1] == "ok" then
-				return ok_cb(reply)
-			end
-			return fl_cb(reply)
-		end)
-	end
-	function ccr.Play(recs, ok_cb, fl_cb)
-		ccr.Request("play", recs, function(req, _, reply)
-			if reply[1] == "ok" then
-				return ok_cb(reply)
-			end
-			return fl_cb(reply)
-		end)
-	end
-	function ccr.ListRecords(cb)
-		ccr.Request("records", {}, function(req, _, reply)
-			cb(reply)
-		end)
-	end
-	function ccr.Fetch(f, callback)
-		local function _fetch()
-			notification.AddProgress("DownloadRecord_"..f, "Downloading recording "..f.."... 0B done")
-			ccr.Request("fetch", {f}, function(req, _, reply)
-				if reply[1] ~= f then return false end
-				local size = reply[2]
-				local done = 0
-				file.Write("camcoder/"..f, "")
-				local function cb(req, _, reply)
-					if reply[3] ~= f then return false end
-					if reply[1] == "end" then notification.Kill("DownloadRecord_"..f) return callback() end
-					file.Append("camcoder/"..f, reply[2])
-					done = done + #reply[2]
-					ccr.Request("fetch_c", {f}, cb)
-				    local done_fmt = done
-				    local u = ""
-				    for _,unit in pairs({"", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"}) do
-				    	u = unit
-				    	if math.abs(done_fmt) < 1024.0 then
-				    		break
-				    	end
-				    	done_fmt = done_fmt / 1024.0
-				    end
-				    done_fmt = string.format("%.2f", done_fmt)
-				    done_fmt = done_fmt..u.."B"
-					notification.AddProgress("DownloadRecord_"..f, "Downloading recording "..f.."... "..done_fmt.." done", done/size)
-				end
-				ccr.Request("fetch_c", {f}, cb)
-			end)
-		end
-		if file.Exists("camcoder/"..f, "DATA") then
-			ccr.Request("hash", {f}, function(req, _, reply)
-				--if util.CRC(file.Read("camcoder/"..f)) == reply[1] then
-				--	callback()
-				--	return
-				--end
-				_fetch()
-				return
-			end)
-			return
-		end
-		_fetch()
-	end
-
-
 	function ccr_file:PlayPreview(stop_on_end)
 		if game.SinglePlayer() then
 			return error("RECORD:PlayPreview() should be called in MULTIPLAYER!")
@@ -649,18 +454,21 @@ if CLIENT then
 		self.bot = ClientsideModel("models/editor/playerstart.mdl", RENDERGROUP_TRANSLUCENT)
 		self.bot:Spawn()
 		self.bot:SetRenderMode(RENDERMODE_TRANSCOLOR)
+		self.bot.messages = {}
+		self.bot.head = ClientsideModel("models/editor/camera.mdl", RENDERGROUP_TRANSLUCENT)
+		self.bot.head:Spawn()
+		self.bot.head:SetRenderMode(RENDERMODE_TRANSCOLOR)
 
 		self.replaying = true
 
 		local initialiser = self:ReadSection()
 
+		self.bot.head:SetPos(initialiser.data.pos+Vector(0, 0, 67))
 		self.bot:SetPos(initialiser.data.pos)
-		self.bot:SetAngles(initialiser.data.angles)
+		self.bot.head:SetAngles(initialiser.data.angles)
+		self.bot:SetAngles(Angle(0, self.bot.head:GetAngles().y, 0))
 
-		local function fail(message)
-			hook.Remove("StartCommand", hname)
-			return error(message)
-		end
+		local name = initialiser.data.name
 
 		local laststate = {}
 		local lastpause = 0
@@ -670,20 +478,26 @@ if CLIENT then
 			if CurTime() - lastpause <= 0.01 then return end
 			lastpause = CurTime()
 			self.bot:SetColor(Color(255, 255, 255, math.random(200, 255)))
+			self.bot.head:SetColor(Color(255, 255, 255, math.random(200, 255)))
 
 			if self:TellSection() >= #self.sections then
 				if stop_on_end then
 					if not IsValid(self.bot) then return end
 					self.replaying = true
 					hook.Remove("StartCommand", hname)
+					hook.Remove("PostDrawTranslucentRenderables", hname)
 					self.bot:Remove()
+					self.bot.head:Remove()
 					return
 				end
 				self:SeekSection(1)
 				local initialiser = self:ReadSection()
 
+				self.bot.head:SetPos(initialiser.data.pos+Vector(0, 0, 67))
 				self.bot:SetPos(initialiser.data.pos)
-				self.bot:SetAngles(initialiser.data.angles)
+				self.bot.head:SetAngles(initialiser.data.angles)
+				self.bot:SetAngles(Angle(0, self.bot.head:GetAngles().y, 0))
+				self.bot.messages = {}
 				return
 			end
 
@@ -694,32 +508,59 @@ if CLIENT then
 				if section.s_id == 0x02 then
 					done = true
 				end
-				if section.s_id == 0x03 then
-					laststate.move = section.data.move
-				end
 				if section.s_id == 0x04 then
 					laststate.angles = section.data.angles
-					self.bot:SetAngles(laststate.angles)
-				end
-				if section.s_id == 0x05 then
-					laststate.buttons = section.data.buttons
-				end
-				if section.s_id == 0x06 then
-					laststate.impulse = section.data.impulse
+					self.bot:SetAngles(Angle(0, laststate.angles.y, 0))
+					self.bot.head:SetAngles(laststate.angles)
 				end
 				if section.s_id == 0x07 then
 					laststate.pos = section.data.pos
 					self.bot:SetPos(laststate.pos)
+					self.bot.head:SetPos(laststate.pos+Vector(0, 0, 67))
+				end
+				if section.s_id == 0x09 then
+					self.bot.messages[#self.bot.messages+1] = section.data.text
 				end
 			end
+		end)
+		hook.Add("PostDrawTranslucentRenderables", hname, function()
+			if self.bot:GetPos():Distance(EyePos()) > 1024 then return end
+			local pos = self.bot:GetPos() + self.bot:GetUp() * 85
+			local angle = (pos - EyePos()):GetNormalized():Angle()
+			angle = Angle(0, angle.y, 0)
+			angle:RotateAroundAxis(angle:Up(), -90)
+			angle:RotateAroundAxis(angle:Forward(), 90)
+			cam.Start3D2D(pos, angle, 0.05 * self.bot:GetPos():Distance(EyePos()) / 128)
+				surface.SetFont("Camcoder_PlayerPreviewFont_Large")
+				local tW, tH = surface.GetTextSize(name)
+				local padX = 20
+				local padY = 5
+				surface.SetDrawColor(0, 0, 0, 200)
+				surface.DrawRect(-tW / 2 - padX, -padY, tW + padX * 2, tH + padY * 2)
+				draw.SimpleText(name, "Camcoder_PlayerPreviewFont_Large", -tW / 2, 0, color_white)
+				for k,v in pairs(table.Reverse(self.bot.messages)) do
+					if k > 5 then break end
+					surface.SetFont("Camcoder_PlayerPreviewFont_Medium")
+					local tW, tH = surface.GetTextSize(v)
+					local padX = 20
+					local padY = 5
+					surface.SetDrawColor(0, 0, 0, math.max(0, 200 - 51*k))
+					surface.DrawRect(300 + -tW / 2 - padX, -padY + tH*(k*2+2), tW + padX * 2, tH + padY * 2)
+					draw.SimpleText(v, "Camcoder_PlayerPreviewFont_Medium", 300 + -tW / 2, tH*(k*2+2), Color(255, 255, 255, math.max(0, 255 - 51*k)))
+				end
+			cam.End3D2D()
 		end)
 		return function()
 			if not IsValid(self.bot) then return end
 			self.replaying = true
 			hook.Remove("StartCommand", hname)
+			hook.Remove("PostDrawTranslucentRenderables", hname)
 			self.bot:Remove()
+			self.bot.head:Remove()
 		end
 	end
 end
+
+--====================================================--
 
 return ccr

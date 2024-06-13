@@ -2,6 +2,7 @@ local utils = include("camcoder/gui/utils.lua")
 
 local function menu(icon, window)
 	window:ShowCloseButton(true)
+	window:SetTitle("Camcoder - Main menu")
 	local cc_recmenu = window:Add("DButton")
 	cc_recmenu:SetText("Record menu")
 	utils.style_button(cc_recmenu)

@@ -1,5 +1,5 @@
 local utils = include("camcoder/gui/utils.lua")
-local format = include("camcoder/format/ccr_0000.lua")
+local format = include("camcoder/format/ccr_interface.lua")
 
 local function mk_btn(window, text, dock, onclick)
 	local btn = window:Add("DButton")
@@ -56,6 +56,7 @@ end
 
 local function rm(icon, window, main_menu_cb)
 	window:ShowCloseButton(false)
+	window:SetTitle("Camcoder - Record menu")
 	local selected = {}
 	local cc_tomenu = mk_btn(window, "Back to main menu", BOTTOM, function()
 		for _,v in pairs(selected) do v() end
@@ -95,7 +96,7 @@ local function rm(icon, window, main_menu_cb)
 	end
 	local function stop_recording()
 		function cc_label:Think() end
-		format.Stop(function()
+		format.StopRecord(function()
 			for k,v in pairs(selected) do
 				v()
 				selected[k] = format.FromRAW(file.Read("camcoder/"..k, "DATA")):PlayPreview(true)
@@ -147,7 +148,7 @@ local function rm(icon, window, main_menu_cb)
 	cc_label_select:SetFont("Trebuchet18")
 	cc_label_select:Dock(TOP)
 	local cc_fileselect = window:Add("DListView")
-	cc_fileselect:SetSize(window:GetWide(), ScrH()/4)
+	cc_fileselect:SetSize(window:GetWide(), ScrH()/9)
 	cc_fileselect:Dock(TOP)
 	cc_fileselect:SetMultiSelect(false)
 	cc_fileselect:AddColumn("Filename")
@@ -163,7 +164,7 @@ local function rm(icon, window, main_menu_cb)
 	cc_label_selected:SetFont("Trebuchet18")
 	cc_label_selected:Dock(TOP)
 	local cc_fileselected = window:Add("DListView")
-	cc_fileselected:SetSize(window:GetWide(), ScrH()/4)
+	cc_fileselected:SetSize(window:GetWide(), ScrH()/9)
 	cc_fileselected:Dock(TOP)
 	cc_fileselected:SetMultiSelect(false)
 	cc_fileselected:AddColumn("Filename")
