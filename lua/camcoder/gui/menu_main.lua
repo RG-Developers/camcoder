@@ -17,6 +17,20 @@ local function menu(icon, window)
 		utils.clear_window(window)
 		include("camcoder/gui/menu_play.lua").menu(icon, window, menu)
 	end
+	local cc_dlmenu = window:Add("DButton")
+	cc_dlmenu:SetText("Download menu")
+	utils.style_button(cc_dlmenu)
+	function cc_dlmenu:DoClick()
+		utils.clear_window(window)
+		include("camcoder/gui/menu_download.lua").menu(icon, window, menu)
+	end
+	local cc_prefmenu = window:Add("DButton")
+	cc_prefmenu:SetText("Preferences")
+	utils.style_button(cc_prefmenu)
+	function cc_prefmenu:DoClick()
+		utils.clear_window(window)
+		include("camcoder/gui/menu_preferences.lua").menu(icon, window, menu)
+	end
 end
 
 return {main_menu=menu}

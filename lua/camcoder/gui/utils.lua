@@ -37,5 +37,5 @@ end
 return {
 	FormattedTime=FormattedTime,
 	clear_window=clear_window,
-	style_button=style_button
+	style_button=style_button,
 }

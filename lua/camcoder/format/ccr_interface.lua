@@ -1,4 +1,7 @@
+if _G.CAMCODER_INCLUDES.interface then return _G.CAMCODER_INCLUDES.interface end
+
 local base = include("camcoder/format/ccr_base.lua")
+local preferences = include("camcoder/format/preferences.lua")
 
 local versions = {
 	[0]=include("camcoder/format/ccr_0000.lua")
@@ -47,6 +50,7 @@ if SERVER then
 		local req = net.ReadString()
 		local data = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
 		if req == "record" then
+			if not preferences.othersrecord and not ply:IsListenServerHost() then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				local handle = ccr.New()
 				handle:Record(ply)
@@ -85,6 +89,7 @@ if SERVER then
 			return ccr.Reply(ply, "stop_replay", {"fail", varg})
 		end
 		if req == "stop_record" then
+			if not preferences.othersrecord and not ply:IsListenServerHost() and not ply.ccr_handle.recording then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				ply.ccr_handle:Stop()
 			end)
@@ -98,7 +103,9 @@ if SERVER then
 				if not ply.ccr_handle then error("nothing was recorded") end
 				if ply.ccr_handle.recording or ply.ccr_handle.replaying then error("recording is being used") end
 				file.CreateDir("camcoder")
-				file.Write("camcoder/"..ply:Name().."_"..data[1]..".txt", ply.ccr_handle.buf.data)
+				local spname = ply:Name()
+				spname = spname:gsub('[\\\'></:%*%?"|]', '_')
+				file.Write("camcoder/"..spname.."_"..data[1]..".txt", ply.ccr_handle.buf.data)
 			end)
 			if succ then
 				return ccr.Reply(ply, "save", {"ok"})
@@ -113,16 +120,18 @@ if SERVER then
 			return ccr.Reply(ply, "hash", {util.CRC(file.Read("camcoder/"..data[1]))})
 		end
 		if req == "fetch" then
+			if not preferences.fetchrecords and not ply:IsListenServerHost() then return ccr.Reply(ply, "fetch", {data[1], 0}) end
 			ply.ccr_fetch_cnt = ply.ccr_fetch_cnt or {}
 			ply.ccr_fetch_cnt[data[1]] = ccr.FromRAW(file.Read("camcoder/"..data[1]))
 			ply.ccr_fetch_cnt[data[1]].buf:Seek(0)
 			return ccr.Reply(ply, "fetch", {data[1], ply.ccr_fetch_cnt[data[1]].buf.size})
 		end
 		if req == "fetch_c" then
+			if not preferences.fetchrecords and not ply:IsListenServerHost() then return ccr.Reply(ply, "fetch_c", {"end", "", data[1]}) end
 			if ply.ccr_fetch_cnt[data[1]].buf:Tell() >= ply.ccr_fetch_cnt[data[1]].buf.size then
 				return ccr.Reply(ply, "fetch_c", {"end", "", data[1]})
 			end
-			local d = ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1024/4)
+			local d = ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1024/32)
 			ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1)
 			return ccr.Reply(ply, "fetch_c", {"", d, data[1]})
 		end
@@ -258,5 +267,7 @@ if CLIENT then
 		_fetch()
 	end
 end
+
+_G.CAMCODER_INCLUDES.interface = ccr
 
 return ccr

@@ -1,4 +1,5 @@
 local utils = include("camcoder/gui/utils.lua")
+local preferences = include("camcoder/format/preferences.lua")
 local format = include("camcoder/format/ccr_interface.lua")
 
 local function mk_btn(window, text, dock, onclick)
@@ -55,6 +56,10 @@ local function record_save(icon, window, ftime, sv_cb, bk_cb)
 end
 
 local function rm(icon, window, main_menu_cb)
+	if not LocalPlayer():IsListenServerHost() and not preferences.othersrecord then
+		LocalPlayer():ChatPrint("Server host disabled ability for others to record.")
+		return main_menu_cb(icon, window)
+	end
 	window:ShowCloseButton(false)
 	window:SetTitle("Camcoder - Record menu")
 	local selected = {}

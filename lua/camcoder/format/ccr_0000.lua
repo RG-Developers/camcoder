@@ -1,5 +1,8 @@
+if _G.CAMCODER_INCLUDES.ccr_0000 then return _G.CAMCODER_INCLUDES.ccr_0000 end
+
 local base = include("camcoder/format/ccr_base.lua")
 local buffer = include("camcoder/format/buffer.lua")
+local preferences = include("camcoder/format/preferences.lua")
 
 local ccr = {sections={}}
 local ccr_file = {s_ptr=0}
@@ -316,6 +319,7 @@ function ccr_file:Record(ply_to_rec)
 	hook.Add("PlayerSay", "CamCoder_Recorder_"..ply_to_rec:Name(), function(ply, text)
 		if ply ~= ply_to_rec then return end
 		if not IsValid(ply_to_rec) then return end
+		if not preferences.recordchat then return end
 		self:WriteSection(0x09, {
 			text = text
 		})
@@ -424,7 +428,7 @@ function ccr_file:Play()
 				end
 			end
 			if section.s_id == 0x09 then
-				net.Start("ccr_protocol_0000_u")
+				net.Start("ccr_protocol_u")
 					net.WriteString("chat")
 					net.WriteEntity(ply)
 					net.WriteString(section.data.text)
@@ -562,5 +566,7 @@ if CLIENT then
 end
 
 --====================================================--
+
+_G.CAMCODER_INCLUDES.ccr_0000 = ccr
 
 return ccr

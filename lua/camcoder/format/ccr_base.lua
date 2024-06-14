@@ -1,3 +1,5 @@
+if _G.CAMCODER_INCLUDES.base then return _G.CAMCODER_INCLUDES.base end
+
 local buffer = include("camcoder/format/buffer.lua")
 
 local ccr_file = {sections={}}
@@ -43,4 +45,5 @@ function ccr_file:UpdateData()
 	end
 end
 
-return {file=ccr_file, section=ccr_section}
+_G.CAMCODER_INCLUDES.base = {file=ccr_file, section=ccr_section}
+return _G.CAMCODER_INCLUDES.base

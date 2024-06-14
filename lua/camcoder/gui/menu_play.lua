@@ -1,4 +1,5 @@
 local utils = include("camcoder/gui/utils.lua")
+local preferences = include("camcoder/format/preferences.lua")
 local format = include("camcoder/format/ccr_interface.lua")
 
 local function mk_btn(window, text, dock, onclick)
@@ -110,9 +111,13 @@ local function rm(icon, window, main_menu_cb)
 		if rname == "fetching..." then return end
 		cc_fileselected:AddLine(rname)
 		cc_fileselect:RemoveLine(index)
-		format.Fetch(rname, function()
-			selected[rname] = format.FromRAW(file.Read("camcoder/"..rname, "DATA")):PlayPreview()
-		end)
+		if not preferences.fetchrecords and not LocalPlayer():IsListenServerHost() then
+			notification.AddLegacy("Records fetching disabled by server host. Preview is not available.", NOTIFY_GENERIC, 2)
+		else
+			format.Fetch(rname, function()
+				selected[rname] = format.FromRAW(file.Read("camcoder/"..rname, "DATA")):PlayPreview()
+			end)
+		end
 	end
 	function cc_fileselected:OnRowSelected(index, pnl)
 		local rname = pnl:GetColumnText(1)
