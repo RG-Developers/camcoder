@@ -25,6 +25,7 @@ else
 end
 
 function prefs:Update()
+	if CLIENT and not IsValid(LocalPlayer()) then return end
 	if CLIENT and not LocalPlayer():IsListenServerHost() then return end
 	local p_raw = util.TableToJSON({
 		recordchat=self.recordchat,
