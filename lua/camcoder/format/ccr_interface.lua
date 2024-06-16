@@ -107,7 +107,7 @@ if SERVER then
 				local valid = true
 				for i = 1, #spname do
 					local c = spname:sub(i,i)
-					if bit.band(c:byte(), 128) then
+					if bit.band(c:byte(), 128) ~= 0 then
 						valid = false
 						break
 					end
