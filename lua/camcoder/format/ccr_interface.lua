@@ -104,11 +104,27 @@ if SERVER then
 				if ply.ccr_handle.recording or ply.ccr_handle.replaying then error("recording is being used") end
 				file.CreateDir("camcoder")
 				local spname = ply:Name()
+				local valid = true
+				for i = 1, #spname do
+					local c = spname:sub(i,i)
+					if bit.band(c:byte(), 128) then
+						valid = false
+						break
+					end
+				end
+				if not valid and not ply:IsFullyAuthenticated() then
+					return error("Could not generate valid filename: "..
+						"player name contains non-ASCII and is not authenticated with steam.")
+				end
+				if not valid then
+					spname = ply:SteamID()
+				end
 				spname = spname:gsub('[\\\'></:%*%?"|]', '_')
 				file.Write("camcoder/"..spname.."_"..data[1]..".txt", ply.ccr_handle.buf.data)
+				return spname.."_"..data[1]..".txt"
 			end)
 			if succ then
-				return ccr.Reply(ply, "save", {"ok"})
+				return ccr.Reply(ply, "save", {"ok", varg})
 			end
 			return ccr.Reply(ply, "save", {"fail", varg})
 		end

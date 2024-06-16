@@ -24,6 +24,13 @@ local function menu(icon, window)
 		utils.clear_window(window)
 		include("camcoder/gui/menu_download.lua").menu(icon, window, menu)
 	end
+	local cc_mgrmenu = window:Add("DButton")
+	cc_mgrmenu:SetText("Manager menu")
+	utils.style_button(cc_mgrmenu)
+	function cc_mgrmenu:DoClick()
+		utils.clear_window(window)
+		include("camcoder/gui/menu_manager.lua").menu(icon, window, menu)
+	end
 	local cc_prefmenu = window:Add("DButton")
 	cc_prefmenu:SetText("Preferences")
 	utils.style_button(cc_prefmenu)
