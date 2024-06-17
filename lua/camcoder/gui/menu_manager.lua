@@ -57,8 +57,9 @@ local function rm(icon, window, main_menu_cb)
 	local angles = Angle(0, 0, 0)
 	local step = 100
 	local zoom = 0.5
+	local shifting = false
+	local lx, ly = -1, -1
 
-	function cc_render:Paint() end
 	local cc_xy_view = cc_render:Add("DPanel")
 	cc_xy_view:SetSize(cc_render:GetWide()/4, cc_render:GetTall())
 	cc_xy_view:Dock(LEFT)
@@ -66,10 +67,10 @@ local function rm(icon, window, main_menu_cb)
 		draw.RoundedBox(0, 0, 0, w, h, Color(0, 0, 0))
 		local relative = center - curpos
 		surface.SetDrawColor(255,255,255,25)
-		for i=w/2+center.x%(step*zoom), w+center.x%(step*zoom), step*zoom do surface.DrawRect(i, 0, 1, h) end
-		for i=w/2+center.x%(step*zoom), 0, -step*zoom do surface.DrawRect(i, 0, 1, h) end
-		for i=h/2+center.y%(step*zoom), h+center.y%(step*zoom), step*zoom do surface.DrawRect(0, i, w, 1) end
-		for i=h/2+center.y%(step*zoom), 0, -step*zoom do surface.DrawRect(0, i, w, 1) end
+		for i=w/2+center.x*zoom%(step*zoom), w+center.x*zoom%(step*zoom), step*zoom do surface.DrawRect(i, 0, 1, h) end
+		for i=w/2+center.x*zoom%(step*zoom), 0, -step*zoom do surface.DrawRect(i, 0, 1, h) end
+		for i=h/2+center.y*zoom%(step*zoom), h+center.y*zoom%(step*zoom), step*zoom do surface.DrawRect(0, i, w, 1) end
+		for i=h/2+center.y*zoom%(step*zoom), 0, -step*zoom do surface.DrawRect(0, i, w, 1) end
 		local x, y = relative.x*zoom, relative.y*zoom
 		draw.RoundedBox(5, w/2-5+x, h/2-5+y, 10, 10, Color(255, 255, 255))
 		local fwd = Vector(1, 0, 0)
@@ -77,6 +78,9 @@ local function rm(icon, window, main_menu_cb)
 		local xa, ya = fwd.x*zoom*100, fwd.y*zoom*100
 		surface.SetDrawColor(255,255,255,255)
 		surface.DrawLine(w/2+x, h/2+y, w/2+x+xa, h/2+y+ya)
+		draw.DrawText("XY View", "TargetID", 0, 0, Color(255, 255, 255))
+		draw.DrawText("X", "TargetID", w*0.5, 0, Color(255, 255, 255))
+		draw.DrawText("Y", "TargetID", 0, h*0.5, Color(255, 255, 255))
 	end
 	local cc_xz_view = cc_render:Add("DPanel")
 	cc_xz_view:SetSize(cc_render:GetWide()/4, cc_render:GetTall())
@@ -85,10 +89,10 @@ local function rm(icon, window, main_menu_cb)
 		draw.RoundedBox(0, 0, 0, w, h, Color(0, 0, 0))
 		local relative = center - curpos
 		surface.SetDrawColor(255,255,255,25)
-		for i=w/2+center.x%(step*zoom), w+center.x%(step*zoom), step*zoom do surface.DrawRect(i, 0, 1, h) end
-		for i=w/2+center.x%(step*zoom), 0, -step*zoom do surface.DrawRect(i, 0, 1, h) end
-		for i=h/2+center.z%(step*zoom), h+center.z%(step*zoom), step*zoom do surface.DrawRect(0, i, w, 1) end
-		for i=h/2+center.z%(step*zoom), 0, -step*zoom do surface.DrawRect(0, i, w, 1) end
+		for i=w/2+center.x*zoom%(step*zoom), w+center.x*zoom%(step*zoom), step*zoom do surface.DrawRect(i, 0, 1, h) end
+		for i=w/2+center.x*zoom%(step*zoom), 0, -step*zoom do surface.DrawRect(i, 0, 1, h) end
+		for i=h/2+center.z*zoom%(step*zoom), h+center.z*zoom%(step*zoom), step*zoom do surface.DrawRect(0, i, w, 1) end
+		for i=h/2+center.z*zoom%(step*zoom), 0, -step*zoom do surface.DrawRect(0, i, w, 1) end
 		local x, y = relative.x*zoom, relative.z*zoom
 		draw.RoundedBox(5, w/2-5+x, h/2-5+y, 10, 10, Color(255, 255, 255))
 		local fwd = Vector(1, 0, 0)
@@ -96,6 +100,9 @@ local function rm(icon, window, main_menu_cb)
 		local xa, ya = fwd.x*zoom*100, fwd.z*zoom*100
 		surface.SetDrawColor(255,255,255,255)
 		surface.DrawLine(w/2+x, h/2+y, w/2+x+xa, h/2+y+ya)
+		draw.DrawText("XZ View", "TargetID", 0, 0, Color(255, 255, 255))
+		draw.DrawText("X", "TargetID", w*0.5, 0, Color(255, 255, 255))
+		draw.DrawText("Z", "TargetID", 0, h*0.5, Color(255, 255, 255))
 	end
 	local cc_yz_view = cc_render:Add("DPanel")
 	cc_yz_view:SetSize(cc_render:GetWide()/4, cc_render:GetTall())
@@ -104,10 +111,10 @@ local function rm(icon, window, main_menu_cb)
 		draw.RoundedBox(0, 0, 0, w, h, Color(0, 0, 0))
 		local relative = center - curpos
 		surface.SetDrawColor(255,255,255,25)
-		for i=w/2+center.y%(step*zoom), w+center.y%(step*zoom), step*zoom do surface.DrawRect(i, 0, 1, h) end
-		for i=w/2+center.y%(step*zoom), 0, -step*zoom do surface.DrawRect(i, 0, 1, h) end
-		for i=h/2+center.z%(step*zoom), h+center.z%(step*zoom), step*zoom do surface.DrawRect(0, i, w, 1) end
-		for i=h/2+center.z%(step*zoom), 0, -step*zoom do surface.DrawRect(0, i, w, 1) end
+		for i=w/2+center.y*zoom%(step*zoom), w+center.y*zoom%(step*zoom), step*zoom do surface.DrawRect(i, 0, 1, h) end
+		for i=w/2+center.y*zoom%(step*zoom), 0, -step*zoom do surface.DrawRect(i, 0, 1, h) end
+		for i=h/2+center.z*zoom%(step*zoom), h+center.z*zoom%(step*zoom), step*zoom do surface.DrawRect(0, i, w, 1) end
+		for i=h/2+center.z*zoom%(step*zoom), 0, -step*zoom do surface.DrawRect(0, i, w, 1) end
 		local x, y = relative.y*zoom, relative.z*zoom
 		draw.RoundedBox(5, w/2-5+x, h/2-5+y, 10, 10, Color(255, 255, 255))
 		local fwd = Vector(1, 0, 0)
@@ -115,15 +122,43 @@ local function rm(icon, window, main_menu_cb)
 		local xa, ya = fwd.y*zoom*100, fwd.z*zoom*100
 		surface.SetDrawColor(255,255,255,255)
 		surface.DrawLine(w/2+x, h/2+y, w/2+x+xa, h/2+y+ya)
+		draw.DrawText("YZ View", "TargetID", 0, 0, Color(255, 255, 255))
+		draw.DrawText("Y", "TargetID", w*0.5, 0, Color(255, 255, 255))
+		draw.DrawText("Z", "TargetID", 0, h*0.5, Color(255, 255, 255))
 	end
-	local cc_zoom = cc_render:Add("DVScrollBar")
-	cc_zoom:Dock(LEFT)
-	cc_zoom:DockMargin(5, 0, 5, 0)
-	cc_zoom:SetUp(0.1, 1000)
-	cc_zoom:SetScroll(500)
-	function cc_render:OnVScroll(off)
-		off = math.max(0.01, math.min(1, -off / 1000))
-		zoom = off
+
+	function cc_render:OnMouseWheeled(delta)
+		zoom = math.max(0.01, math.min(1, zoom + delta / 50))
+	end
+
+	function cc_render:Paint()
+		local x, y = gui.MouseX(), gui.MouseY()
+		local sx, sy = cc_xy_view:LocalToScreen(cc_xy_view:GetPos())
+		local rx, ry = x - sx, y - sy
+		if rx < 0 or ry < 0 or rx > self:GetWide() or ry > self:GetTall() then shifting = false return end
+
+		if shifting then
+			if not input.IsMouseDown(MOUSE_LEFT) then shifting = false return end
+			if cc_xy_view:IsHovered() then
+				center.x = center.x + (x - lx) / zoom
+				center.y = center.y + (y - ly) / zoom
+			end
+			if cc_xz_view:IsHovered() then
+				center.x = center.x + (x - lx) / zoom
+				center.z = center.z + (y - ly) / zoom
+			end
+			if cc_yz_view:IsHovered() then
+				center.y = center.y + (x - lx) / zoom
+				center.z = center.z + (y - ly) / zoom
+			end
+			lx = x
+			ly = y
+		end
+		if input.IsMouseDown(MOUSE_LEFT) then
+			shifting = true
+			lx = x
+			ly = y
+		end
 	end
 	local cc_info_view = cc_render:Add("DPanel")
 	cc_info_view:Dock(FILL)
@@ -141,9 +176,10 @@ local function rm(icon, window, main_menu_cb)
 	cc_info_angles:SetFont("Trebuchet18")
 	cc_info_angles:Dock(TOP)
 	local cc_info_info = cc_render:Add("DLabel")
-	cc_info_info:SetText("Each line separates 100u chunks.\nScrollbar controls zoom.\nSDT - Section DaTa\n"..
-					     "We do not provide any support for\nrecordings corrupted by\nimproper editing.")
-	cc_info_info:SetFont("Trebuchet18")
+	cc_info_info:SetText("Each line separates 100u chunks.\nScroll to control zoom.\n"..
+						 "Use mouse to move around.\nSDT - Section DaTa\n"..
+						 "Support is not provided for\nrecordings corrupted by\nimproper editing.")
+	cc_info_info:SetFont("DefaultSmall")
 	cc_info_info:SizeToContents()
 	cc_info_info:Dock(BOTTOM)
 
@@ -231,6 +267,7 @@ local function rm(icon, window, main_menu_cb)
 		cc_textentry_type:SetEditable(true)
 		cc_textentry_type:SetValue("")
 		cc_textentry_type:SetEditable(false)
+
 		format.Fetch(rname, function()
 			selected = format.FromRAW(file.Read("camcoder/"..rname, "DATA"))
 			selected_filename = "camcoder/"..rname
@@ -261,7 +298,7 @@ local function rm(icon, window, main_menu_cb)
 		end
 		if self.smallupdate then
 			self.smallupdate = false
-			return
+			--return
 		else
 			selected:SeekSection(2)
 			for i=2,frameid-1,1 do
@@ -271,7 +308,7 @@ local function rm(icon, window, main_menu_cb)
 					cc_info_angles:SetText("Current angles: "..string.format("%.2f %.2f %.2f", sect.data.angles.x, sect.data.angles.y, sect.data.angles.z))
 				end
 				if sect.s_id == 0x07 then
-					curpos = center + sect.data.offset
+					curpos = curpos + sect.data.offset
 					cc_info_curpos:SetText("Current position: "..string.format("%.2f %.2f %.2f", curpos.x, curpos.y, curpos.z))
 				end
 			end
@@ -379,7 +416,7 @@ local function rm(icon, window, main_menu_cb)
 				cc_info_angles:SetText("Current angles: "..string.format("%.2f %.2f %.2f", sect.data.angles.x, sect.data.angles.y, sect.data.angles.z))
 			end
 			if sect.s_id == 0x07 then
-				curpos = center + sect.data.offset
+				curpos = curpos + sect.data.offset
 				cc_info_curpos:SetText("Current position: "..string.format("%.2f %.2f %.2f", curpos.x, curpos.y, curpos.z))
 			end
 		end)

@@ -82,6 +82,8 @@ ccr.sections[0x01].read = function(section)
 	section.data.pos = section.buf:ReadVECTOR()
 	section.data.angles = section.buf:ReadANGLE()
 	section.data.name = section.buf:ReadBSTRING()
+	section.data.groups = section.buf:ReadSSTRING()
+	section.data.skin = section.buf:ReadUINT8()
 	return section
 end
 ccr.sections[0x01].write = function(section)
@@ -104,6 +106,8 @@ ccr.sections[0x01].write = function(section)
 	section.buf:WriteVECTOR(section.data.pos)
 	section.buf:WriteANGLE(section.data.angles)
 	section.buf:WriteBSTRING(section.data.name)
+	section.buf:WriteSSTRING(section.data.groups)
+	section.buf:WriteUINT8(section.data.skin)
 	section.s_dt = section.buf.data
 	section.s_sz = #section.buf.data
 	return section
@@ -269,6 +273,29 @@ function ccr_file:Record(ply_to_rec)
 		wtable["weapon"] = {wep:GetClass(), wep:Clip1(), wep:Clip2()}
 	end
 
+	local broups = ""
+	local function basen(n,b)
+	    n = math.floor(n)
+	    if not b or b == 10 then return tostring(n) end
+	    local digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	    local t = {}
+	    local sign = ""
+	    if n < 0 then
+	        sign = "-"
+	    n = -n
+	    end
+	    repeat
+	        local d = (n % b) + 1
+	        n = math.floor(n / b)
+	        table.insert(t, 1, digits:sub(d,d))
+	    until n == 0
+	    return sign .. table.concat(t,"")
+	end
+	local groups = ""
+	for i=0,#self.ply:GetBodyGroups() do
+		groups = groups .. basen(self.ply:GetBodygroup(i), 35)
+	end
+
 	self:WriteSection(0x01, {
 		model = self.ply:GetModel(),
 		pcolor = self.ply:GetPlayerColor(),
@@ -277,10 +304,20 @@ function ccr_file:Record(ply_to_rec)
 		curweapon = self.ply:GetActiveWeapon():GetClass(),
 		pos = self.ply:GetPos(),
 		angles = self.ply:EyeAngles(),
-		name = self.ply:Nick()
+		name = self.ply:Nick(),
+		groups = groups,
+		skin = self.ply:GetSkin()
 	})
 
-	local laststate = {startpos = self.ply:GetPos()}
+	local laststate = {
+		lastpos = self.ply:GetPos(),
+		move = Vector(),
+		angles = self.ply:EyeAngles(),
+		buttons = 0,
+		impulse = 0,
+		offset = Vector(),
+		weapon = self.ply:GetActiveWeapon():GetClass()
+	}
 	hook.Add("StartCommand", "CamCoder_Recorder_"..ply_to_rec:Name(), function(ply, cmd)
 		if ply ~= ply_to_rec then return end
 		if not IsValid(ply_to_rec) then return end
@@ -308,11 +345,11 @@ function ccr_file:Record(ply_to_rec)
 				impulse = laststate.impulse
 			})
 		end
-		if laststate.offset ~= ply:GetPos() - laststate.startpos then
-			laststate.offset = ply:GetPos() - laststate.startpos
+		if laststate.lastpos ~= ply:GetPos() then
 			self:WriteSection(0x07, {
-				offset = laststate.offset
+				offset = ply:GetPos() - laststate.lastpos
 			})
+			laststate.lastpos = ply:GetPos()
 		end
 		if IsValid(ply:GetActiveWeapon()) and laststate.weapon ~= ply:GetActiveWeapon():GetClass() then
 			laststate.weapon = ply:GetActiveWeapon():GetClass()
@@ -355,6 +392,8 @@ function ccr_file:Play()
 	self.replaying = true
 
 	self.bot:SetModel(initialiser.data.model)
+	self.bot:SetSkin(initialiser.data.skin)
+	self.bot:SetBodyGroups(initialiser.data.groups)
 	self.bot:SetPlayerColor(initialiser.data.pcolor)
 	self.bot:SetWeaponColor(initialiser.data.wcolor)
 	self.bot:SetPos(initialiser.data.pos)
@@ -422,10 +461,7 @@ function ccr_file:Play()
 				cmd:SetImpulse(laststate.impulse)
 			end
 			if section.s_id == 0x07 then
-				laststate.offset = section.data.offset
-				--if self.bot:GetPos():Distance(laststate.startpos + laststate.offset) > self.bot:GetMaxSpeed() then
-				--	self.bot:SetPos(laststate.startpos + laststate.offset)
-				--end
+				-- unused, can be used for syncronisation
 			end
 			if section.s_id == 0x08 then
 				laststate.weapon = section.data.weapon
@@ -525,9 +561,8 @@ if CLIENT then
 					self.bot.head:SetAngles(laststate.angles)
 				end
 				if section.s_id == 0x07 then
-					laststate.offset = section.data.offset
-					self.bot:SetPos(laststate.startpos + laststate.offset)
-					self.bot.head:SetPos(laststate.startpos + laststate.offset+Vector(0, 0, 67))
+					self.bot:SetPos(self.bot:GetPos() + section.data.offset)
+					self.bot.head:SetPos(self.bot:GetPos() + section.data.offset+Vector(0, 0, 67))
 				end
 				if section.s_id == 0x09 then
 					self.bot.messages[#self.bot.messages+1] = section.data.text

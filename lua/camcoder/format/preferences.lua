@@ -41,7 +41,7 @@ function prefs:Update()
 end
 function prefs:Read()
 	local p_raw = file.Read("camcoder_preferences.txt") or "{}"
-	local p = util.JSONToTable(p_raw)
+	local p = util.JSONToTable(p_raw) or {}
 	if p.recordchat == nil then p.recordchat = true end
 	if p.othersrecord == nil then p.othersrecord = false end
 	if p.fetchrecords == nil then p.fetchrecords = false end
