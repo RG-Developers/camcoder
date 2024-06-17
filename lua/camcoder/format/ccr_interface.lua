@@ -147,7 +147,7 @@ if SERVER then
 			if ply.ccr_fetch_cnt[data[1]].buf:Tell() >= ply.ccr_fetch_cnt[data[1]].buf.size then
 				return ccr.Reply(ply, "fetch_c", {"end", "", data[1]})
 			end
-			local d = ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1024/32)
+			local d = ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1024)
 			ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1)
 			return ccr.Reply(ply, "fetch_c", {"", d, data[1]})
 		end

@@ -54,6 +54,7 @@ local function rm(icon, window, main_menu_cb)
 
 	local center = Vector(0, 0, 0)
 	local curpos = Vector(0, 0, 0)
+	local angles = Angle(0, 0, 0)
 	local step = 100
 	local zoom = 0.5
 
@@ -71,6 +72,11 @@ local function rm(icon, window, main_menu_cb)
 		for i=h/2+center.y%(step*zoom), 0, -step*zoom do surface.DrawRect(0, i, w, 1) end
 		local x, y = relative.x*zoom, relative.y*zoom
 		draw.RoundedBox(5, w/2-5+x, h/2-5+y, 10, 10, Color(255, 255, 255))
+		local fwd = Vector(1, 0, 0)
+		fwd:Rotate(angles)
+		local xa, ya = fwd.x*zoom*100, fwd.y*zoom*100
+		surface.SetDrawColor(255,255,255,255)
+		surface.DrawLine(w/2+x, h/2+y, w/2+x+xa, h/2+y+ya)
 	end
 	local cc_xz_view = cc_render:Add("DPanel")
 	cc_xz_view:SetSize(cc_render:GetWide()/4, cc_render:GetTall())
@@ -85,6 +91,11 @@ local function rm(icon, window, main_menu_cb)
 		for i=h/2+center.z%(step*zoom), 0, -step*zoom do surface.DrawRect(0, i, w, 1) end
 		local x, y = relative.x*zoom, relative.z*zoom
 		draw.RoundedBox(5, w/2-5+x, h/2-5+y, 10, 10, Color(255, 255, 255))
+		local fwd = Vector(1, 0, 0)
+		fwd:Rotate(angles)
+		local xa, ya = fwd.x*zoom*100, fwd.z*zoom*100
+		surface.SetDrawColor(255,255,255,255)
+		surface.DrawLine(w/2+x, h/2+y, w/2+x+xa, h/2+y+ya)
 	end
 	local cc_yz_view = cc_render:Add("DPanel")
 	cc_yz_view:SetSize(cc_render:GetWide()/4, cc_render:GetTall())
@@ -99,6 +110,11 @@ local function rm(icon, window, main_menu_cb)
 		for i=h/2+center.z%(step*zoom), 0, -step*zoom do surface.DrawRect(0, i, w, 1) end
 		local x, y = relative.y*zoom, relative.z*zoom
 		draw.RoundedBox(5, w/2-5+x, h/2-5+y, 10, 10, Color(255, 255, 255))
+		local fwd = Vector(1, 0, 0)
+		fwd:Rotate(angles)
+		local xa, ya = fwd.y*zoom*100, fwd.z*zoom*100
+		surface.SetDrawColor(255,255,255,255)
+		surface.DrawLine(w/2+x, h/2+y, w/2+x+xa, h/2+y+ya)
 	end
 	local cc_zoom = cc_render:Add("DVScrollBar")
 	cc_zoom:Dock(LEFT)
@@ -198,8 +214,10 @@ local function rm(icon, window, main_menu_cb)
 		local rname = pnl:GetColumnText(1)
 		if rname == "fetching..." then return end
 		selected_file_panel = index
-		selected_frame_panel = nil
-		selected_data_panel = nil
+		if not self.restore then
+			selected_frame_panel = nil
+			selected_data_panel = nil
+		end
 		for k, line in pairs(cc_frameselect:GetLines()) do
 		    cc_frameselect:RemoveLine(line:GetID())
 		end
@@ -228,21 +246,34 @@ local function rm(icon, window, main_menu_cb)
 			cc_info_curpos:SetText("Current position: "..string.format("%.2f %.2f %.2f", curpos.x, curpos.y, curpos.z))
 			cc_info_ctrpos:SetText("Center position: "..string.format("%.2f %.2f %.2f", center.x, center.y, center.z))
 			cc_info_angles:SetText("Current angles: "..string.format("%.2f %.2f %.2f", initl.data.angles.x, initl.data.angles.y, initl.data.angles.z))
+			if self.restore then
+				self.restore = nil
+				cc_frameselect.restore = true
+				cc_frameselect:SelectItem(cc_frameselect:GetLine(selected_frame_panel))
+			end
 		end)
 	end
 	function cc_frameselect:OnRowSelected(index, pnl)
-		local frameid = pnl:GetID()
+		local frameid = index
 		selected_frame_panel = index
-		selected_data_panel = nil
-		selected:SeekSection(2)
-		for i=2,frameid-1,1 do
-			local sect = selected:ReadSection()
-			if sect.s_id == 0x04 then
-				cc_info_angles:SetText("Current angles: "..string.format("%.2f %.2f %.2f", sect.data.angles.x, sect.data.angles.y, sect.data.angles.z))
-			end
-			if sect.s_id == 0x07 then
-				curpos = center + sect.data.offset
-				cc_info_curpos:SetText("Current position: "..string.format("%.2f %.2f %.2f", curpos.x, curpos.y, curpos.z))
+		if not self.restore then
+			selected_data_panel = nil
+		end
+		if self.smallupdate then
+			self.smallupdate = false
+			return
+		else
+			selected:SeekSection(2)
+			for i=2,frameid-1,1 do
+				local sect = selected:ReadSection()
+				if sect.s_id == 0x04 then
+					angles = sect.data.angles
+					cc_info_angles:SetText("Current angles: "..string.format("%.2f %.2f %.2f", sect.data.angles.x, sect.data.angles.y, sect.data.angles.z))
+				end
+				if sect.s_id == 0x07 then
+					curpos = center + sect.data.offset
+					cc_info_curpos:SetText("Current position: "..string.format("%.2f %.2f %.2f", curpos.x, curpos.y, curpos.z))
+				end
 			end
 		end
 		selected:SeekSection(frameid-1)
@@ -270,6 +301,10 @@ local function rm(icon, window, main_menu_cb)
 		end
 		parse(section.data, "root")
 		selected_section = section
+		if self.restore then
+			self.restore = nil
+			cc_dataselect:SelectItem(cc_dataselect:GetLine(selected_data_panel))
+		end
 	end
 
 	function cc_dataselect:OnRowSelected(index, pnl)
@@ -304,6 +339,50 @@ local function rm(icon, window, main_menu_cb)
 		cc_textentry_type:SetEditable(true)
 		cc_textentry_type:SetValue(type(data))
 		cc_textentry_type:SetEditable(false)
+	end
+
+	local cc_togglereplay = cc_dataedit:Add("DButton")
+	cc_togglereplay:SetText("Play/Stop")
+	utils.style_button(cc_togglereplay)
+	cc_togglereplay:Dock(BOTTOM)
+	local replaying = false
+	local hname = ""
+	function cc_togglereplay:DoClick()
+		if not selected then return end
+		if replaying then
+			replaying = false
+			hook.Remove("StartCommand", hname)
+			return
+		end
+		replaying = true
+		hname = "CamCoder_Player_"..math.random(10000, 99999)
+		local laststate = {startpos=center}
+		local lastpause = 0
+		selected_frame_panel = selected_frame_panel or 1
+		hook.Add("StartCommand", hname, function(ply, cmd)
+			if ply ~= LocalPlayer() then return end
+			if cmd:TickCount() == 0 then return end
+			if CurTime() - lastpause <= 0.01 then return end
+			lastpause = CurTime()
+			cc_frameselect:GetLine(selected_frame_panel):SetSelected(false)
+			cc_frameselect.smallupdate = true
+			cc_frameselect:SelectItem(cc_frameselect:GetLine(selected_frame_panel+1))
+			cc_frameselect.VBar:SetScroll((selected_frame_panel-1)*cc_frameselect:GetDataHeight())
+			if selected:TellSection() >= #selected.sections then
+				replaying = false
+				hook.Remove("StartCommand", hname)
+				return
+			end
+			local sect = selected:ReadSection()
+			if sect.s_id == 0x04 then
+				angles = sect.data.angles
+				cc_info_angles:SetText("Current angles: "..string.format("%.2f %.2f %.2f", sect.data.angles.x, sect.data.angles.y, sect.data.angles.z))
+			end
+			if sect.s_id == 0x07 then
+				curpos = center + sect.data.offset
+				cc_info_curpos:SetText("Current position: "..string.format("%.2f %.2f %.2f", curpos.x, curpos.y, curpos.z))
+			end
+		end)
 	end
 
 	local cc_applyedits = cc_dataedit:Add("DButton")
@@ -341,21 +420,18 @@ local function rm(icon, window, main_menu_cb)
 			data[last] = rdata
 		end
 		selected:SeekSection(selected:TellSection()-1)
-		selected:WriteSection(selected_section.s_id, selected_section.data)
+		local succ, varg = pcall(function() selected:WriteSection(selected_section.s_id, selected_section.data) end)
+		if not succ then
+			notification.AddLegacy("Failed to apply change: "..varg, NOTIFY_ERROR, 5)
+			return
+		end
 		selected:UpdateData()
 		file.Write(selected_filename, selected.buf.data)
 
 		if not selected_data_panel then return end
 
+		cc_fileselect.restore = true
 		cc_fileselect:SelectItem(cc_fileselect:GetLines()[selected_file_panel])
-		timer.Simple(0.5, function()
-			cc_frameselect:SelectItem(cc_frameselect:GetLines()[selected_frame_panel])
-			timer.Simple(0.5, function()
-				cc_dataselect:SelectItem(cc_dataselect:GetLines()[selected_data_panel])
-			end)
-		end)
-		
-
 	end
 end
 

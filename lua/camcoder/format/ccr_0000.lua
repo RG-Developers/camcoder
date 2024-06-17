@@ -563,7 +563,7 @@ if CLIENT then
 		end)
 		return function()
 			if not IsValid(self.bot) then return end
-			self.replaying = true
+			self.replaying = false
 			hook.Remove("StartCommand", hname)
 			hook.Remove("PostDrawTranslucentRenderables", hname)
 			self.bot:Remove()
