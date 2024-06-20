@@ -69,7 +69,14 @@ local function pm(icon, window, main_menu_cb)
 		preferences.botcollideply = check
 		preferences:Update()
 	end
-
+	local cc_botcollideall = window:Add("DCheckBoxLabel")
+	cc_botcollideall:SetValue(preferences.botcollideall)
+	cc_botcollideall:SetText("Camcoder bots collide with anything at all")
+	cc_botcollideall:Dock(TOP)
+	function cc_botcollideall:OnChange(check)
+		preferences.botcollideall = check
+		preferences:Update()
+	end
 end
 
 return {menu=pm}

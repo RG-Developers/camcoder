@@ -15,6 +15,7 @@ if SERVER then
 		prefs.fetchrecords = p.fetchrecords
 		prefs.pushrecords = p.pushrecords
 		prefs.botcollideply = p.botcollideply
+		prefs.botcollideall = p.botcollideall
 		prefs:Update()
 	end)
 else
@@ -27,6 +28,7 @@ else
 		prefs.fetchrecords = p.fetchrecords
 		prefs.pushrecords = p.pushrecords
 		prefs.botcollideply = p.botcollideply
+		prefs.botcollideall = p.botcollideall
 	end)
 end
 
@@ -40,6 +42,7 @@ function prefs:Update()
 		fetchrecords=self.fetchrecords,
 		pushrecords=self.pushrecords,
 		botcollideply=self.botcollideply,
+		botcollideall=self.botcollideall,
 	})
 	if SERVER then
 		file.Write("camcoder_preferences.txt", p_raw)
@@ -57,12 +60,14 @@ function prefs:Read()
 	if p.fetchrecords == nil then p.fetchrecords = false end
 	if p.pushrecords == nil then p.pushrecords = false end
 	if p.botcollideply == nil then p.botcollideply = true end
+	if p.botcollideall == nil then p.botcollideall = true end
 	self.recordchat = p.recordchat
 	self.othersrecord = p.othersrecord
 	self.othersreplay = p.othersreplay
 	self.fetchrecords = p.fetchrecords
 	self.pushrecords = p.pushrecords
 	self.botcollideply = p.botcollideply
+	self.botcollideall = p.botcollideall
 end
 
 prefs:Read()

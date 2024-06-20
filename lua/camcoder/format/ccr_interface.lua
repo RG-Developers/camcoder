@@ -36,8 +36,10 @@ end
 
 if SERVER then
 	hook.Add("ShouldCollide", "camcoder_no_bot_collisions", function(ent1, ent2)
-		if preferences.botcollideply then return end
+		if preferences.botcollideply and preferences.botcollideall then return end
 		if ent1:IsPlayer() and ent2:IsPlayer() and (ent1.camcoder_bot or ent2.camcoder_bot) then return false end
+		if preferences.botcollideall then return end
+		if (ent1:IsPlayer() and ent1.camcoder_bot) or (ent2:IsPlayer() and ent2.camcoder_bot) then return false end
 	end)
 
 	util.AddNetworkString("ccr_protocol")

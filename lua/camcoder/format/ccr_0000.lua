@@ -402,6 +402,11 @@ function ccr_file:Play()
 	self.bot:StripAmmo()
 	self.bot:StripWeapons()
 	self.bot:SetCustomCollisionCheck(true)
+	local ed = EffectData()
+		ed:SetOrigin(self.bot:GetPos())
+		ed:SetEntity(self.bot)
+	util.Effect("propspawn", ed, true, true)
+
 	for _,wtable in pairs(initialiser.data.weapons) do
 		if wtable["ammo"]["t1"][1] ~= -1 then
 			self.bot:SetAmmo(wtable["ammo"]["t1"][1], wtable["ammo"]["t1"][2])
