@@ -18,11 +18,11 @@ local function menu(icon, window)
 		include("camcoder/gui/menu_play.lua").menu(icon, window, menu)
 	end
 	local cc_dlmenu = window:Add("DButton")
-	cc_dlmenu:SetText("Download menu")
+	cc_dlmenu:SetText("Transfer menu")
 	utils.style_button(cc_dlmenu)
 	function cc_dlmenu:DoClick()
 		utils.clear_window(window)
-		include("camcoder/gui/menu_download.lua").menu(icon, window, menu)
+		include("camcoder/gui/menu_transfer.lua").menu(icon, window, menu)
 	end
 	local cc_mgrmenu = window:Add("DButton")
 	cc_mgrmenu:SetText("Manager menu")

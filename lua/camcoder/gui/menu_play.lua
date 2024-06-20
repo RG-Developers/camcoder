@@ -14,8 +14,8 @@ local function mk_btn(window, text, dock, onclick)
 end
 
 local function rm(icon, window, main_menu_cb)
-	if not LocalPlayer():IsListenServerHost() then
-		LocalPlayer():ChatPrint("CamCoder player GUI is not available to non-server-hosts!")
+	if not LocalPlayer():IsSuperAdmin() and not preferences.othersreplay then
+		LocalPlayer():ChatPrint("Server host disabled ability for others to replay.")
 		return main_menu_cb(icon, window)
 	end
 	window:ShowCloseButton(false)
@@ -48,7 +48,7 @@ local function rm(icon, window, main_menu_cb)
 			cc_togglerep:SetText("Stop replaying")
 			cc_togglerep:SetEnabled(true)
 		end, function(d)
-			PrintTable(d)
+			print("[CAMCODER] "..d[2])
 			cc_label:SetText("Failed to start replay: "..d[2])
 			cc_togglerep:SetText("Stop replaying")
 			cc_togglerep:SetEnabled(true)
@@ -66,7 +66,7 @@ local function rm(icon, window, main_menu_cb)
 			cc_togglerep:SetText("Start replaying")
 			cc_togglerep:SetEnabled(true)
 		end, function(d)
-			PrintTable(d)
+			print("[CAMCODER] "..d[2])
 			cc_label:SetText("Failed to stop playing: "..d[2])
 			timer.Simple(1, function()
 				cc_label:SetText("Replaying...")
@@ -111,7 +111,7 @@ local function rm(icon, window, main_menu_cb)
 		if rname == "fetching..." then return end
 		cc_fileselected:AddLine(rname)
 		cc_fileselect:RemoveLine(index)
-		if not preferences.fetchrecords and not LocalPlayer():IsListenServerHost() then
+		if not preferences.fetchrecords and not LocalPlayer():IsSuperAdmin() then
 			notification.AddLegacy("Records fetching disabled by server host. Preview is not available.", NOTIFY_GENERIC, 2)
 		else
 			format.Fetch(rname, function()

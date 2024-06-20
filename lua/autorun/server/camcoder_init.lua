@@ -10,7 +10,7 @@ local cs_files = {
 	"camcoder/gui/menu_main.lua",
 	"camcoder/gui/menu_play.lua",
 	"camcoder/gui/menu_record.lua",
-	"camcoder/gui/menu_download.lua",
+	"camcoder/gui/menu_transfer.lua",
 	"camcoder/gui/menu_manager.lua",
 	"camcoder/gui/menu_preferences.lua",
 	"camcoder/gui/utils.lua",

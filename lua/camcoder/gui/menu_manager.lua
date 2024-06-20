@@ -16,7 +16,7 @@ local function mk_btn(window, text, dock, onclick)
 end
 
 local function rm(icon, window, main_menu_cb)
-	if not preferences.fetchrecords and not LocalPlayer():IsListenServerHost() then
+	if not preferences.fetchrecords and not LocalPlayer():IsSuperAdmin() then
 		notification.AddLegacy("Records fetching disabled by server host. Manager not available.", NOTIFY_GENERIC, 2)
 		return main_menu_cb(icon, window)
 	end
@@ -246,6 +246,34 @@ local function rm(icon, window, main_menu_cb)
 	local selected_frame_panel = nil
 	local selected_data_panel = nil
 
+	function cc_fileselect:OnRowRightClick(index, pnl)
+		local menu = DermaMenu()
+
+		menu:AddOption("Refetch", function()
+			format.Fetch(pnl:GetColumnText(1), function() notification.AddLegacy("Refetched!", NOTIFY_GENERIC, 2) end)
+		end):SetIcon("icon16/arrow_refresh.png")
+
+		local delete, p = menu:AddSubMenu("Delete")
+		p:SetIcon("icon16/delete.png")
+		delete:AddOption("Confirm", function()
+			if not preferences.pushrecords and not LocalPlayer():IsSuperAdmin() then
+				notification.AddLegacy("Records pushing disabled by server host.", NOTIFY_ERROR, 2)
+				return
+			end
+			format.Delete(pnl:GetColumnText(1))
+			notification.AddLegacy("Deleted!", NOTIFY_GENERIC, 2)
+			cc_fileselect:RemoveLine(pnl:GetID())
+			if selected_file_panel == index then
+				for k, line in pairs(cc_frameselect:GetLines()) do
+				    cc_frameselect:RemoveLine(line:GetID())
+				end
+				for k, line in pairs(cc_dataselect:GetLines()) do
+				    cc_dataselect:RemoveLine(line:GetID())
+				end
+			end
+		end):SetIcon("icon16/delete.png")
+		menu:Open()
+	end
 	function cc_fileselect:OnRowSelected(index, pnl)
 		local rname = pnl:GetColumnText(1)
 		if rname == "fetching..." then return end
@@ -271,11 +299,6 @@ local function rm(icon, window, main_menu_cb)
 		format.Fetch(rname, function()
 			selected = format.FromRAW(file.Read("camcoder/"..rname, "DATA"))
 			selected_filename = "camcoder/"..rname
-			for n,section in pairs(selected.sections) do
-				local id = guihelps.frameids[section.s_id] or "UNK/"..string.format("%2x", section.s_id)
-				local dt = string.format("%q", section.s_dt):Replace("\n", "\\n"):sub(2, -2)
-				cc_frameselect:AddLine(id, section.s_sz.." B", dt:sub(0,12)..(dt:sub(0,12) ~= dt and "..." or ""))
-			end
 			selected:SeekSection(1)
 			local initl = selected:ReadSection()
 			center = initl.data.pos
@@ -283,11 +306,29 @@ local function rm(icon, window, main_menu_cb)
 			cc_info_curpos:SetText("Current position: "..string.format("%.2f %.2f %.2f", curpos.x, curpos.y, curpos.z))
 			cc_info_ctrpos:SetText("Center position: "..string.format("%.2f %.2f %.2f", center.x, center.y, center.z))
 			cc_info_angles:SetText("Current angles: "..string.format("%.2f %.2f %.2f", initl.data.angles.x, initl.data.angles.y, initl.data.angles.z))
-			if self.restore then
-				self.restore = nil
-				cc_frameselect.restore = true
-				cc_frameselect:SelectItem(cc_frameselect:GetLine(selected_frame_panel))
-			end
+			local coro = coroutine.create(function()
+				for n,section in pairs(selected.sections) do
+					local id = guihelps.frameids[section.s_id] or "UNK/"..string.format("%2x", section.s_id)
+					local dt = string.format("%q", section.s_dt):Replace("\n", "\\n"):sub(2, -2)
+					if not IsValid(cc_frameselect) then return end
+					cc_frameselect:AddLine(id, section.s_sz.." B", dt:sub(0,12)..(dt:sub(0,12) ~= dt and "..." or ""))
+					if n % 10 == 0 then coroutine.yield() end
+				end
+				if self.restore then
+					self.restore = nil
+					if not IsValid(cc_frameselect) then return end
+					cc_frameselect.restore = true
+					cc_frameselect:SelectItem(cc_frameselect:GetLine(selected_frame_panel))
+				end
+			end)
+			local hname = "CamCoder_Manager_Load"..math.random(10000, 99999)
+			hook.Add("Think", hname, function()
+				if coroutine.status(coro) == "dead" then
+					hook.Remove("Think", hname)
+					return
+				end
+				coroutine.resume(coro)
+			end)
 		end)
 	end
 	function cc_frameselect:OnRowSelected(index, pnl)
@@ -422,8 +463,22 @@ local function rm(icon, window, main_menu_cb)
 		end)
 	end
 
+	local cc_pushedits = cc_dataedit:Add("DButton")
+	cc_pushedits:SetText("Push")
+	utils.style_button(cc_pushedits)
+	cc_pushedits:Dock(BOTTOM)
+	function cc_pushedits:DoClick()
+		if not preferences.pushrecords and not LocalPlayer():IsSuperAdmin() then
+			notification.AddLegacy("Records pushing disabled by server host.", NOTIFY_ERROR, 2)
+			return
+		end
+		format.Push(selected_filename, function()
+			notification.AddLegacy("Successfully pushed recording "..selected_filename.." to server.", NOTIFY_GENERIC, 2)
+		end)
+	end
+
 	local cc_applyedits = cc_dataedit:Add("DButton")
-	cc_applyedits:SetText("Apply")
+	cc_applyedits:SetText("Save")
 	utils.style_button(cc_applyedits)
 	cc_applyedits:Dock(BOTTOM)
 	function cc_applyedits:DoClick()

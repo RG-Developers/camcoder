@@ -37,14 +37,39 @@ local function pm(icon, window, main_menu_cb)
 		preferences.othersrecord = check
 		preferences:Update()
 	end
+	local cc_othersreplay = window:Add("DCheckBoxLabel")
+	cc_othersreplay:SetValue(preferences.othersreplay)
+	cc_othersreplay:SetText("Allow others to replay")
+	cc_othersreplay:Dock(TOP)
+	function cc_othersreplay:OnChange(check)
+		preferences.othersreplay = check
+		preferences:Update()
+	end
 	local cc_fetchrecords = window:Add("DCheckBoxLabel")
-	cc_fetchrecords:SetValue(preferences.othersrecord)
+	cc_fetchrecords:SetValue(preferences.fetchrecords)
 	cc_fetchrecords:SetText("Allow others to fetch records")
 	cc_fetchrecords:Dock(TOP)
 	function cc_fetchrecords:OnChange(check)
 		preferences.fetchrecords = check
 		preferences:Update()
 	end
+	local cc_pushrecords = window:Add("DCheckBoxLabel")
+	cc_pushrecords:SetValue(preferences.pushrecords)
+	cc_pushrecords:SetText("Allow others to push records")
+	cc_pushrecords:Dock(TOP)
+	function cc_pushrecords:OnChange(check)
+		preferences.pushrecords = check
+		preferences:Update()
+	end
+	local cc_botcollideply = window:Add("DCheckBoxLabel")
+	cc_botcollideply:SetValue(preferences.botcollideply)
+	cc_botcollideply:SetText("Camcoder bots collide with players")
+	cc_botcollideply:Dock(TOP)
+	function cc_botcollideply:OnChange(check)
+		preferences.botcollideply = check
+		preferences:Update()
+	end
+
 end
 
 return {menu=pm}

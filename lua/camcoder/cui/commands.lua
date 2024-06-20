@@ -2,7 +2,7 @@ local preferences = include("camcoder/format/preferences.lua")
 local format = include("camcoder/format/ccr_interface.lua")
 
 concommand.Add("camcoder_startrecord", function(ply, cmd, args)
-    if not LocalPlayer():IsListenServerHost() and not preferences.othersrecord then
+    if not LocalPlayer():IsSuperAdmin() and not preferences.othersrecord then
         print("Server owner disabled ability for others to record")
         return
     end
@@ -15,7 +15,7 @@ concommand.Add("camcoder_startrecord", function(ply, cmd, args)
 end)
 
 concommand.Add("camcoder_stoprecord", function(ply, cmd, args)
-    if not LocalPlayer():IsListenServerHost() and not preferences.othersrecord then
+    if not LocalPlayer():IsSuperAdmin() and not preferences.othersrecord then
         print("Server owner disabled ability for others to record")
         return
     end
@@ -28,7 +28,7 @@ concommand.Add("camcoder_stoprecord", function(ply, cmd, args)
 end)
 
 concommand.Add("camcoder_saverecord", function(ply, cmd, args, argsstr)
-    if not LocalPlayer():IsListenServerHost() and not preferences.othersrecord then
+    if not LocalPlayer():IsSuperAdmin() and not preferences.othersrecord then
         print("Server owner disabled ability for others to record")
         return
     end
@@ -50,7 +50,7 @@ concommand.Add("camcoder_listrecords", function(ply, cmd, args)
 end)
 
 concommand.Add("camcoder_downloadrecord", function(ply, cmd, args)
-    if LocalPlayer():IsListenServerHost() then
+    if LocalPlayer():IsSuperAdmin() then
         print("You do not need this command! It's only used to download records from you.")
         return
     end

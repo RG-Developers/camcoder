@@ -1,6 +1,6 @@
 local attempts = 0
 
-list.Set("DesktopWindows", "Camcoder", {
+local dt = {
 	title		= "Camcoder",
 	icon		= "camcoder/gui/icon.png",
 	width		= ScrW()/3,
@@ -42,4 +42,13 @@ list.Set("DesktopWindows", "Camcoder", {
 
 		include("camcoder/gui/menu_main.lua").main_menu(icon, window)
 	end
-})
+}
+
+list.Set("DesktopWindows", "Camcoder", dt)
+
+concommand.Add("camcoder_gui", function(ply, cmd, args)
+    local dframe = vgui.Create("DFrame")
+    dframe:SetSize(dt.width, dt.height)
+    dframe:MakePopup()
+    dt.init(nil, dframe)
+end)

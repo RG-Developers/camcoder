@@ -6,12 +6,15 @@ local prefs = {}
 
 if SERVER then
 	net.Receive("camcoder_preferences", function(_, ply)
-		if not ply:IsListenServerHost() then return end
+		if not ply:IsSuperAdmin() then return end
 		local p_raw = net.ReadString()
 		local p = util.JSONToTable(p_raw)
 		prefs.recordchat = p.recordchat
 		prefs.othersrecord = p.othersrecord
+		prefs.othersreplay = p.othersreplay
 		prefs.fetchrecords = p.fetchrecords
+		prefs.pushrecords = p.pushrecords
+		prefs.botcollideply = p.botcollideply
 		prefs:Update()
 	end)
 else
@@ -20,17 +23,23 @@ else
 		local p = util.JSONToTable(p_raw)
 		prefs.recordchat = p.recordchat
 		prefs.othersrecord = p.othersrecord
+		prefs.othersreplay = p.othersreplay
 		prefs.fetchrecords = p.fetchrecords
+		prefs.pushrecords = p.pushrecords
+		prefs.botcollideply = p.botcollideply
 	end)
 end
 
 function prefs:Update()
 	if CLIENT and not IsValid(LocalPlayer()) then return end
-	if CLIENT and not LocalPlayer():IsListenServerHost() then return end
+	if CLIENT and not LocalPlayer():IsSuperAdmin() then return end
 	local p_raw = util.TableToJSON({
 		recordchat=self.recordchat,
 		othersrecord=self.othersrecord,
-		fetchrecords=self.fetchrecords
+		othersreplay=self.othersreplay,
+		fetchrecords=self.fetchrecords,
+		pushrecords=self.pushrecords,
+		botcollideply=self.botcollideply,
 	})
 	if SERVER then
 		file.Write("camcoder_preferences.txt", p_raw)
@@ -44,10 +53,16 @@ function prefs:Read()
 	local p = util.JSONToTable(p_raw) or {}
 	if p.recordchat == nil then p.recordchat = true end
 	if p.othersrecord == nil then p.othersrecord = false end
+	if p.othersreplay == nil then p.othersreplay = false end
 	if p.fetchrecords == nil then p.fetchrecords = false end
+	if p.pushrecords == nil then p.pushrecords = false end
+	if p.botcollideply == nil then p.botcollideply = true end
 	self.recordchat = p.recordchat
 	self.othersrecord = p.othersrecord
+	self.othersreplay = p.othersreplay
 	self.fetchrecords = p.fetchrecords
+	self.pushrecords = p.pushrecords
+	self.botcollideply = p.botcollideply
 end
 
 prefs:Read()

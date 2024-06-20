@@ -35,6 +35,11 @@ function ccr.New()
 end
 
 if SERVER then
+	hook.Add("ShouldCollide", "camcoder_no_bot_collisions", function(ent1, ent2)
+		if preferences.botcollideply then return end
+		if ent1:IsPlayer() and ent2:IsPlayer() and (ent1.camcoder_bot or ent2.camcoder_bot) then return false end
+	end)
+
 	util.AddNetworkString("ccr_protocol")
 	util.AddNetworkString("ccr_protocol_u")
 	function ccr.Reply(who, req, data)
@@ -46,11 +51,11 @@ if SERVER then
 		net.Send(who)
 	end
 	net.Receive("ccr_protocol", function(_, ply)
-		--if not ply:IsListenServerHost() then return end
+		--if not ply:IsSuperAdmin() then return end
 		local req = net.ReadString()
 		local data = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
 		if req == "record" then
-			if not preferences.othersrecord and not ply:IsListenServerHost() then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
+			if not preferences.othersrecord and not ply:IsSuperAdmin() then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				local handle = ccr.New()
 				handle:Record(ply)
@@ -63,6 +68,7 @@ if SERVER then
 			return ccr.Reply(ply, "record", {"fail", varg})
 		end
 		if req == "play" then
+			if not preferences.othersreplay and not ply:IsSuperAdmin() then return ccr.Reply(ply, "play", {"fail", "not allowed"}) end
 			ply.ccr_records = ply.ccr_records or {}
 			for _,v in pairs(ply.ccr_records) do pcall(function() v:Stop() end) end
 			ply.ccr_records = {}
@@ -78,6 +84,7 @@ if SERVER then
 			return ccr.Reply(ply, "play", {"fail", varg})
 		end
 		if req == "stop_replay" then
+			if not preferences.othersreplay and not ply:IsSuperAdmin() and not ply.ccr_records then return ccr.Reply(ply, "stop_replay", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				for k,v in pairs(ply.ccr_records) do
 					pcall(function() v:Stop() end)
@@ -89,7 +96,7 @@ if SERVER then
 			return ccr.Reply(ply, "stop_replay", {"fail", varg})
 		end
 		if req == "stop_record" then
-			if not preferences.othersrecord and not ply:IsListenServerHost() and not ply.ccr_handle.recording then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
+			if not preferences.othersrecord and not ply:IsSuperAdmin() and not ply.ccr_handle.recording then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				ply.ccr_handle:Stop()
 			end)
@@ -99,6 +106,7 @@ if SERVER then
 			return ccr.Reply(ply, "stop_record", {"fail", varg})
 		end
 		if req == "save" then
+			if not preferences.othersreplay and not ply:IsSuperAdmin() then return ccr.Reply(ply, "save", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				if not ply.ccr_handle then error("nothing was recorded") end
 				if ply.ccr_handle.recording or ply.ccr_handle.replaying then error("recording is being used") end
@@ -135,21 +143,44 @@ if SERVER then
 		if req == "hash" then
 			return ccr.Reply(ply, "hash", {util.CRC(file.Read("camcoder/"..data[1]))})
 		end
+		if req == "delete" then
+			if not preferences.pushrecords and not ply:IsSuperAdmin() then return ccr.Reply(ply, "delete", {}) end
+			file.Delete("camcoder/"..data[1])
+			return ccr.Reply(ply, "delete", {})
+		end
 		if req == "fetch" then
-			if not preferences.fetchrecords and not ply:IsListenServerHost() then return ccr.Reply(ply, "fetch", {data[1], 0}) end
+			if not preferences.fetchrecords and not ply:IsSuperAdmin() then return ccr.Reply(ply, "fetch", {data[1], 0}) end
 			ply.ccr_fetch_cnt = ply.ccr_fetch_cnt or {}
 			ply.ccr_fetch_cnt[data[1]] = ccr.FromRAW(file.Read("camcoder/"..data[1]))
 			ply.ccr_fetch_cnt[data[1]].buf:Seek(0)
 			return ccr.Reply(ply, "fetch", {data[1], ply.ccr_fetch_cnt[data[1]].buf.size})
 		end
 		if req == "fetch_c" then
-			if not preferences.fetchrecords and not ply:IsListenServerHost() then return ccr.Reply(ply, "fetch_c", {"end", "", data[1]}) end
+			if not preferences.fetchrecords and not ply:IsSuperAdmin() then return ccr.Reply(ply, "fetch_c", {"end", "", data[1]}) end
 			if ply.ccr_fetch_cnt[data[1]].buf:Tell() >= ply.ccr_fetch_cnt[data[1]].buf.size then
 				return ccr.Reply(ply, "fetch_c", {"end", "", data[1]})
 			end
 			local d = ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1024)
 			ply.ccr_fetch_cnt[data[1]].buf:ReadRAW(1)
 			return ccr.Reply(ply, "fetch_c", {"", d, data[1]})
+		end
+		if req == "push" then
+			if not preferences.pushrecords and not ply:IsSuperAdmin() then return ccr.Reply(ply, "push", {data[1]}) end
+			ply.ccr_push_cnt = ply.ccr_push_cnt or {}
+			ply.ccr_push_cnt[data[1]] = ccr.New()
+			ply.ccr_push_cnt[data[1]].buf.data = ""
+			ply.ccr_push_cnt[data[1]].buf:Seek(0)
+			return ccr.Reply(ply, "push", {data[1]})
+		end
+		if req == "push_c" then
+			if not preferences.pushrecords and not ply:IsSuperAdmin() then return ccr.Reply(ply, "push_c", {data[1]}) end
+			if data[3] == "end" then
+				print("Fetched recording "..data[1].." from "..ply:Name().." with size of "..#ply.ccr_push_cnt[data[1]].buf.data.." bytes...")
+				file.Write("camcoder/"..data[1], ply.ccr_push_cnt[data[1]].buf.data)
+				return ccr.Reply(ply, "push_c", {data[1]})
+			end
+			ply.ccr_push_cnt[data[1]].buf:WriteRAW(data[2])
+			return ccr.Reply(ply, "push_c", {data[1]})
 		end
 	end)
 end
@@ -239,6 +270,61 @@ if CLIENT then
 			cb(reply)
 		end)
 	end
+	function ccr.Hash(f, cb)
+		ccr.Request("hash", {f}, function(req, _, reply)
+			cb(reply)
+		end)
+	end
+	function ccr.Delete(fname)
+		ccr.Request("delete", {fname}, function(req, _, reply) end)
+	end
+	function ccr.Push(f, callback)
+		local function _push()
+			local f = ccr.FromRAW(file.Read("camcoder/"..f))
+			notification.AddProgress("UploadRecord_"..f, "Uploading recording "..f.."... 0B done")
+			ccr.Request("push", {f}, function(req, _, reply)
+				if reply[1] ~= f then return false end
+				local done = 0
+				local function cb(req, _, reply)
+					if reply[1] ~= f then return false end
+					if reply[1] == "end" then notification.Kill("UploadRecord_"..f) return callback() end
+					local d = f.buf:ReadRAW(1024)
+					f.buf:ReadRAW(1)
+					if f.buf:Tell() >= #f.buf.data then
+						callback()
+						return ccr.Request("push_c", {f, "", "end"}, cb)
+					end
+					done = done + #d
+					ccr.Request("push_c", {f, d, ""}, cb)
+				    local done_fmt = done
+				    local u = ""
+				    for _,unit in pairs({"", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"}) do
+				    	u = unit
+				    	if math.abs(done_fmt) < 1024.0 then
+				    		break
+				    	end
+				    	done_fmt = done_fmt / 1024.0
+				    end
+				    done_fmt = string.format("%.2f", done_fmt)
+				    done_fmt = done_fmt..u.."B"
+					notification.AddProgress("UploadRecord_"..f, "Uploading recording "..f.."... "..done_fmt.." done", done/size)
+				end
+				local d = f.buf:ReadRAW(1024)
+				f.buf:ReadRAW(1)
+				done = done + #d
+				notification.AddProgress("UploadRecord_"..f, "Uploading recording "..f.."... "..done_fmt.." done", done/size)
+				ccr.Request("push_c", {f}, cb)
+			end)
+		end
+		ccr.Hash(f, function(reply)
+			if util.CRC(file.Read("camcoder/"..f)) == reply[1] then
+				callback()
+				return
+			end
+			_push()
+			return
+		end)
+	end
 	function ccr.Fetch(f, callback)
 		local function _fetch()
 			notification.AddProgress("DownloadRecord_"..f, "Downloading recording "..f.."... 0B done")
@@ -270,7 +356,7 @@ if CLIENT then
 			end)
 		end
 		if file.Exists("camcoder/"..f, "DATA") then
-			ccr.Request("hash", {f}, function(req, _, reply)
+			ccr.Hash(f, function(reply)
 				if util.CRC(file.Read("camcoder/"..f)) == reply[1] then
 					callback()
 					return

@@ -389,6 +389,7 @@ function ccr_file:Play()
 
 	self.bot = bot
 	self.bot.name = name
+	self.bot.camcoder_bot = true
 	self.replaying = true
 
 	self.bot:SetModel(initialiser.data.model)
@@ -400,6 +401,7 @@ function ccr_file:Play()
 	self.bot:SetEyeAngles(initialiser.data.angles)
 	self.bot:StripAmmo()
 	self.bot:StripWeapons()
+	self.bot:SetCustomCollisionCheck(true)
 	for _,wtable in pairs(initialiser.data.weapons) do
 		if wtable["ammo"]["t1"][1] ~= -1 then
 			self.bot:SetAmmo(wtable["ammo"]["t1"][1], wtable["ammo"]["t1"][2])
