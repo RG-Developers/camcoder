@@ -60,11 +60,13 @@ local function rm(icon, window, main_menu_cb)
 		LocalPlayer():ChatPrint("Server host disabled ability for others to record.")
 		return main_menu_cb(icon, window)
 	end
+
 	window:ShowCloseButton(false)
 	window:SetTitle("Camcoder - Record menu")
 	local selected = {}
 	local cc_tomenu = mk_btn(window, "Back to main menu", BOTTOM, function()
 		for _,v in pairs(selected) do v() end
+		hook.Remove("HUDPaint", "CamCoder_Recorder_HUD")
 		utils.clear_window(window)
 		main_menu_cb(icon, window)
 	end)
@@ -139,6 +141,7 @@ local function rm(icon, window, main_menu_cb)
 	cc_save = mk_btn(window, "Save recording", TOP, function()
 		if not recend or not recstart then return end
 		for _,v in pairs(selected) do v() end
+		hook.Remove("HUDPaint", "CamCoder_Recorder_HUD")
 		utils.clear_window(window)
 		record_save(icon, window, utils.FormattedTime(recend-recstart), function(fname)
 			local cc_label = rm(icon, window, main_menu_cb)
@@ -202,6 +205,25 @@ local function rm(icon, window, main_menu_cb)
 		selected[rname]()
 		selected[rname] = nil
 	end
+
+	hook.Add("HUDPaint", "CamCoder_Recorder_HUD", function()
+		local ftime = utils.FormattedTime(0)
+		local col = Color(55,55,55,((math.sin(RealTime())+1)/2*127+127))
+		local txt = "IDL"
+		if recstart and not recend then
+			ftime = utils.FormattedTime(CurTime()-recstart)
+			col = Color(255,0,0,((math.sin(RealTime()*5)+1)/2*255))
+			txt = "REC"
+		end
+		if recend then
+			ftime = utils.FormattedTime(recend-recstart)
+		end
+		draw.RoundedBox(10, ScrW()-160, 10, 150, 50, Color(55, 55, 55, 127))
+		draw.RoundedBox(10, ScrW()-160, 70, 150, 25, Color(55, 55, 55, 127))
+		draw.RoundedBox(10, ScrW()-150, 20, 30, 30, col)
+		draw.DrawText(txt, "camcoder_bigfont", ScrW()-110, 10, Color(255, 255, 255), TEXT_ALIGN_LEFT)
+		draw.DrawText(ftime, "DermaDefault", ScrW()-85, 75, Color(255, 255, 255), TEXT_ALIGN_CENTER)
+	end)
 
 	return cc_label
 end
