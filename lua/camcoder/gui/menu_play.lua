@@ -39,6 +39,7 @@ local function rm(icon, window, main_menu_cb)
 		cc_label:SetText("Requesting replay start...")
 		cc_togglerep:SetText("...")
 		cc_togglerep:SetEnabled(false)
+		cc_tomenu:SetEnabled(false)
 		local fns = {}
 		for k,_ in pairs(selected) do fns[#fns+1] = k end
 		format.Play(fns, function()
@@ -50,8 +51,9 @@ local function rm(icon, window, main_menu_cb)
 		end, function(d)
 			print("[CAMCODER] "..d[2])
 			cc_label:SetText("Failed to start replay: "..d[2])
-			cc_togglerep:SetText("Stop replaying")
+			cc_togglerep:SetText("Start replaying")
 			cc_togglerep:SetEnabled(true)
+			cc_tomenu:SetEnabled(true)
 		end)
 	end
 	local function stop_replaying()
@@ -65,6 +67,7 @@ local function rm(icon, window, main_menu_cb)
 			cc_label:SetText("Done replaying!")
 			cc_togglerep:SetText("Start replaying")
 			cc_togglerep:SetEnabled(true)
+			cc_tomenu:SetEnabled(true)
 		end, function(d)
 			print("[CAMCODER] "..d[2])
 			cc_label:SetText("Failed to stop playing: "..d[2])
@@ -107,6 +110,7 @@ local function rm(icon, window, main_menu_cb)
 	cc_fileselected:AddColumn("Filename")
 
 	function cc_fileselect:OnRowSelected(index, pnl)
+		if replaying then return end
 		local rname = pnl:GetColumnText(1)
 		if rname == "fetching..." then return end
 		cc_fileselected:AddLine(rname)
@@ -120,6 +124,7 @@ local function rm(icon, window, main_menu_cb)
 		end
 	end
 	function cc_fileselected:OnRowSelected(index, pnl)
+		if replaying then return end
 		local rname = pnl:GetColumnText(1)
 		cc_fileselect:AddLine(rname)
 		cc_fileselected:RemoveLine(index)

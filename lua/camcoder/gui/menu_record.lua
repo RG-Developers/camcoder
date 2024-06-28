@@ -74,8 +74,10 @@ local function rm(icon, window, main_menu_cb)
 	cc_label:SetFont("Trebuchet24")
 	cc_label:Dock(TOP)
 
-	local cc_togglerec, recstart, recend, recording
+	local cc_togglerec, cc_save, recstart, recend, recording
 	local function start_recording()
+		cc_tomenu:SetEnabled(false)
+		cc_save:SetEnabled(false)
 		cc_label:SetText("Requesting record start...")
 		format.StartRecord(function()
 			for k,v in pairs(selected) do
@@ -95,6 +97,8 @@ local function rm(icon, window, main_menu_cb)
 			cc_label:SetText("Failed to start recording: "..d[2])
 			cc_togglerec:SetText("Start recording")
 			cc_togglerec:SetEnabled(true)
+			cc_tomenu:SetEnabled(true)
+			cc_save:SetEnabled(true)
 		end)
 		cc_togglerec:SetText("...")
 		cc_togglerec:SetEnabled(false)
@@ -104,13 +108,15 @@ local function rm(icon, window, main_menu_cb)
 		format.StopRecord(function()
 			for k,v in pairs(selected) do
 				v()
-				selected[k] = format.FromRAW(file.Read("camcoder/"..k, "DATA")):PlayPreview(true)
+				selected[k] = format.FromRAW(file.Read("camcoder/"..k, "DATA")):PlayPreview()
 			end
 			recording = false
 			recend = CurTime()
 			cc_label:SetText("Done recording! "..utils.FormattedTime(recend-recstart))
 			cc_togglerec:SetText("Start recording")
 			cc_togglerec:SetEnabled(true)
+			cc_tomenu:SetEnabled(true)
+			cc_save:SetEnabled(true)
 		end, function(d)
 			print("[CAMCODER] "..d[2])
 			cc_label:SetText("Failed to stop recording: "..d[2])
@@ -132,6 +138,7 @@ local function rm(icon, window, main_menu_cb)
 
 	cc_save = mk_btn(window, "Save recording", TOP, function()
 		if not recend or not recstart then return end
+		for _,v in pairs(selected) do v() end
 		utils.clear_window(window)
 		record_save(icon, window, utils.FormattedTime(recend-recstart), function(fname)
 			local cc_label = rm(icon, window, main_menu_cb)
@@ -148,6 +155,7 @@ local function rm(icon, window, main_menu_cb)
 			cc_label:SetText("Save aborted")
 		end)
 	end)
+	cc_save:SetEnabled(false)
 
 	local cc_label_select = window:Add("DLabel")
 	cc_label_select:SetText("Available")
@@ -177,6 +185,7 @@ local function rm(icon, window, main_menu_cb)
 	cc_fileselected:AddColumn("Filename")
 
 	function cc_fileselect:OnRowSelected(index, pnl)
+		if recording then return end
 		local rname = pnl:GetColumnText(1)
 		if rname == "fetching..." then return end
 		cc_fileselected:AddLine(rname)
@@ -186,6 +195,7 @@ local function rm(icon, window, main_menu_cb)
 		end)
 	end
 	function cc_fileselected:OnRowSelected(index, pnl)
+		if recording then return end
 		local rname = pnl:GetColumnText(1)
 		cc_fileselect:AddLine(rname)
 		cc_fileselected:RemoveLine(index)
