@@ -7,6 +7,16 @@ local preferences = include("camcoder/format/preferences.lua")
 local ccr = {sections={}}
 local ccr_file = {s_ptr=0}
 
+local function try(what, default)
+	local succ, vararg = pcall(function()
+		local res = what()
+		assert(res ~= nil)
+		return res
+	end)
+	if not succ then return default end
+	return vararg
+end
+
 --====================================================--
 
 function ccr.FromRAW(raw)
@@ -27,6 +37,12 @@ function ccr.New()
 end
 
 --====================================================--
+
+function ccr_file:WriteToFile(path)
+	self:UpdateData()
+	local data = self.buf.data
+	file.Write("camcoder/recordings/"..path, data)
+end
 
 function ccr_file:ReadSection()
 	self.s_ptr = self.s_ptr + 1
@@ -63,27 +79,29 @@ end
 ccr.sections[0x01] = {}
 ccr.sections[0x01].read = function(section)
 	section.data = {}
-	section.data.model = section.buf:ReadBSTRING()
-	section.data.pcolor = section.buf:ReadVECTOR()
-	section.data.wcolor = section.buf:ReadVECTOR()
+	section.data.model = try(function() return section.buf:ReadBSTRING() end, "error")
+	section.data.pcolor = try(function() return section.buf:ReadVECTOR() end, Vector())
+	section.data.wcolor = try(function() return section.buf:ReadVECTOR() end, Vector())
 	section.data.weapons = {}
-	for i=1,section.buf:ReadUINT16() do
+	for i=1, try(function() return section.buf:ReadUINT16() end, 0) do
 		section.data.weapons[#section.data.weapons+1] = {}
 		local wtable = section.data.weapons[#section.data.weapons]
 		wtable["ammo"] = {}
-		wtable["ammo"]["t1"] = {section.buf:ReadINT8(), section.buf:ReadUINT16()}
-		wtable["ammo"]["t2"] = {section.buf:ReadINT8(), section.buf:ReadUINT16()}
-		local clip1 = section.buf:ReadINT16()
-		local clip2 = section.buf:ReadINT16()
-		local weapon = section.buf:ReadBSTRING()
+		wtable["ammo"]["t1"] = {try(function() return section.buf:ReadINT8() end, -1), try(function() return section.buf:ReadUINT16() end, -1)}
+		wtable["ammo"]["t2"] = {try(function() return section.buf:ReadINT8() end, -1), try(function() return section.buf:ReadUINT16() end, -1)}
+		local clip1 = try(function() return section.buf:ReadINT16() end, 0)
+		local clip2 = try(function() return section.buf:ReadINT16() end, 0)
+		local weapon = try(function() return section.buf:ReadBSTRING() end, "weapon_crowbar")
 		wtable["weapon"] = {weapon, clip1, clip2}
 	end
-	section.data.curweapon = section.buf:ReadBSTRING()
-	section.data.pos = section.buf:ReadVECTOR()
-	section.data.angles = section.buf:ReadANGLE()
-	section.data.name = section.buf:ReadBSTRING()
-	section.data.groups = section.buf:ReadSSTRING()
-	section.data.skin = section.buf:ReadUINT8()
+	section.data.curweapon = try(function() return section.buf:ReadBSTRING() end, "weapon_crowbar")
+	section.data.pos = try(function() return section.buf:ReadVECTOR() end, Vector())
+	section.data.angles = try(function() return section.buf:ReadANGLE() end, Angle())
+	section.data.name = try(function() return section.buf:ReadBSTRING() end, "error!")
+	section.data.groups = try(function() return section.buf:ReadSSTRING() end, "")
+	section.data.skin = try(function() return section.buf:ReadUINT8() end, 0)
+	section.data.map = try(function() return section.buf:ReadSSTRING() end, game.GetMap())
+	section.data.voicepath = try(function() return section.buf:ReadSSTRING() end, "")
 	return section
 end
 ccr.sections[0x01].write = function(section)
@@ -108,6 +126,8 @@ ccr.sections[0x01].write = function(section)
 	section.buf:WriteBSTRING(section.data.name)
 	section.buf:WriteSSTRING(section.data.groups)
 	section.buf:WriteUINT8(section.data.skin)
+	section.buf:WriteSSTRING(section.data.map)
+	section.buf:WriteSSTRING(section.data.voicepath)
 	section.s_dt = section.buf.data
 	section.s_sz = #section.buf.data
 	return section
@@ -118,7 +138,7 @@ ccr.sections[0x02].write = function(s) s.s_dt = "" s.s_sz = 0 return s end
 ccr.sections[0x03] = {}
 ccr.sections[0x03].read = function(section)
 	section.data = {}
-	section.data.move = section.buf:ReadVECTOR()
+	section.data.move = try(function() return section.buf:ReadVECTOR() end, Vector())
 	return section
 end
 ccr.sections[0x03].write = function(section)
@@ -131,7 +151,7 @@ end
 ccr.sections[0x04] = {}
 ccr.sections[0x04].read = function(section)
 	section.data = {}
-	section.data.angles = section.buf:ReadANGLE()
+	section.data.angles = try(function() return section.buf:ReadANGLE() end, Angle())
 	return section
 end
 ccr.sections[0x04].write = function(section)
@@ -144,7 +164,7 @@ end
 ccr.sections[0x05] = {}
 ccr.sections[0x05].read = function(section)
 	section.data = {}
-	section.data.buttons = section.buf:ReadUINT16() + bit.lshift(section.buf:ReadUINT16(), 16)
+	section.data.buttons = try(function() return section.buf:ReadUINT16() end, 0) + try(function() return bit.lshift(section.buf:ReadUINT16(), 16) end, 0)
 	return section
 end
 ccr.sections[0x05].write = function(section)
@@ -158,7 +178,7 @@ end
 ccr.sections[0x06] = {}
 ccr.sections[0x06].read = function(section)
 	section.data = {}
-	section.data.impulse = section.buf:ReadUINT8()
+	section.data.impulse = try(function() return section.buf:ReadUINT8() end, 0)
 	return section
 end
 ccr.sections[0x06].write = function(section)
@@ -171,7 +191,7 @@ end
 ccr.sections[0x07] = {}
 ccr.sections[0x07].read = function(section)
 	section.data = {}
-	section.data.offset = section.buf:ReadVECTOR()
+	section.data.offset = try(function() return section.buf:ReadVECTOR() end, Vector())
 	return section
 end
 ccr.sections[0x07].write = function(section)
@@ -184,7 +204,7 @@ end
 ccr.sections[0x08] = {}
 ccr.sections[0x08].read = function(section)
 	section.data = {}
-	section.data.weapon = section.buf:ReadBSTRING()
+	section.data.weapon = try(function() return section.buf:ReadBSTRING() end, "")
 	return section
 end
 ccr.sections[0x08].write = function(section)
@@ -197,7 +217,7 @@ end
 ccr.sections[0x09] = {}
 ccr.sections[0x09].read = function(section)
 	section.data = {}
-	section.data.text = section.buf:ReadBSTRING()
+	section.data.text = try(function() return section.buf:ReadBSTRING() end, "")
 	return section
 end
 ccr.sections[0x09].write = function(section)
@@ -239,6 +259,10 @@ function ccr_file:Stop()
 	if self.replaying then
 		hook.Remove("StartCommand", "CamCoder_Player_"..self.bot.name)
 		self.bot:Kick("Early stop")
+		net.Start("ccr_protocol_u")
+			net.WriteString("voicestop")
+			net.WriteEntity(self.bot)
+		net.Broadcast()
 		self.bot = nil
 		self.replaying = false
 		return
@@ -306,7 +330,9 @@ function ccr_file:Record(ply_to_rec)
 		angles = self.ply:EyeAngles(),
 		name = self.ply:Nick(),
 		groups = groups,
-		skin = self.ply:GetSkin()
+		skin = self.ply:GetSkin(),
+		map = game.GetMap(),
+		voicepath = ply_to_rec.camcoder_voicepath or ""
 	})
 
 	local laststate = {
@@ -390,6 +416,7 @@ function ccr_file:Play()
 	self.bot = bot
 	self.bot.name = name
 	self.bot.camcoder_bot = true
+	self.bot.camcoder_voicepath = initialiser.data.voicepath
 	self.replaying = true
 
 	self.bot:SetModel(initialiser.data.model)
@@ -399,6 +426,7 @@ function ccr_file:Play()
 	self.bot:SetWeaponColor(initialiser.data.wcolor)
 	self.bot:SetPos(initialiser.data.pos)
 	self.bot:SetEyeAngles(initialiser.data.angles)
+
 	self.bot:StripAmmo()
 	self.bot:StripWeapons()
 	self.bot:SetCustomCollisionCheck(true)
@@ -430,10 +458,31 @@ function ccr_file:Play()
 		return error(message)
 	end
 
-	local laststate = {startpos=self.bot:GetPos()}
+	local laststate = {startpos=self.bot:GetPos(), started=false}
 	hook.Add("StartCommand", "CamCoder_Player_"..name, function(ply, cmd)
 		if ply ~= bot then return end
 		if not IsValid(bot) then return end
+		if not laststate.started then
+			laststate.started = true
+			if initialiser.data.map ~= game.GetMap() then
+				timer.Simple(0.5, function()
+					net.Start("ccr_protocol_u")
+						net.WriteString("chat")
+						net.WriteEntity(self.bot)
+						net.WriteString("This file was recorded on "..initialiser.data.map..", instead playing on "..game.GetMap())
+					net.Broadcast()
+				end)
+			end
+			if self.bot.camcoder_voicepath ~= "" then
+				timer.Simple(0.5, function()
+					net.Start("ccr_protocol_u")
+						net.WriteString("voiceinit")
+						net.WriteEntity(self.bot)
+						net.WriteString(self.bot.camcoder_voicepath)
+					net.Broadcast()
+				end)
+			end
+		end
 
 		if self:TellSection() >= #self.sections then
 			bot:Kick("Recording ended.")

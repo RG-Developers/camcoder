@@ -84,7 +84,7 @@ local function rm(icon, window, main_menu_cb)
 		format.StartRecord(function()
 			for k,v in pairs(selected) do
 				v()
-				selected[k] = format.FromRAW(file.Read("camcoder/"..k, "DATA")):PlayPreview(true)
+				selected[k] = format.ReadFromFile(k):PlayPreview(true)
 			end
 			recording = true
 			cc_label:SetText("Recording...")
@@ -110,7 +110,7 @@ local function rm(icon, window, main_menu_cb)
 		format.StopRecord(function()
 			for k,v in pairs(selected) do
 				v()
-				selected[k] = format.FromRAW(file.Read("camcoder/"..k, "DATA")):PlayPreview()
+				selected[k] = format.ReadFromFile(k):PlayPreview()
 			end
 			recording = false
 			recend = CurTime()
@@ -194,7 +194,7 @@ local function rm(icon, window, main_menu_cb)
 		cc_fileselected:AddLine(rname)
 		cc_fileselect:RemoveLine(index)
 		format.Fetch(rname, function()
-			selected[rname] = format.FromRAW(file.Read("camcoder/"..rname, "DATA")):PlayPreview()
+			selected[rname] = format.ReadFromFile(rname):PlayPreview()
 		end)
 	end
 	function cc_fileselected:OnRowSelected(index, pnl)

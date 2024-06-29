@@ -62,7 +62,7 @@ local function rm(icon, window, main_menu_cb)
 		cc_togglerep:SetEnabled(false)
 		
 		format.Stop(function()
-			for k,_ in pairs(selected) do selected[k] = format.FromRAW(file.Read("camcoder/"..k, "DATA")):PlayPreview() end
+			for k,_ in pairs(selected) do selected[k] = format.ReadFromFile(k):PlayPreview() end
 			replaying = false
 			cc_label:SetText("Done replaying!")
 			cc_togglerep:SetText("Start replaying")
@@ -119,7 +119,7 @@ local function rm(icon, window, main_menu_cb)
 			notification.AddLegacy("Records fetching disabled by server host. Preview is not available.", NOTIFY_GENERIC, 2)
 		else
 			format.Fetch(rname, function()
-				selected[rname] = format.FromRAW(file.Read("camcoder/"..rname, "DATA")):PlayPreview()
+				selected[rname] = format.ReadFromFile(rname):PlayPreview()
 			end)
 		end
 	end

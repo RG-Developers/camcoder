@@ -297,8 +297,8 @@ local function rm(icon, window, main_menu_cb)
 		cc_textentry_type:SetEditable(false)
 
 		format.Fetch(rname, function()
-			selected = format.FromRAW(file.Read("camcoder/"..rname, "DATA"))
-			selected_filename = "camcoder/"..rname
+			selected = format.ReadFromFile(rname)
+			selected_filename = rname
 			selected:SeekSection(1)
 			local initl = selected:ReadSection()
 			center = initl.data.pos
@@ -517,8 +517,7 @@ local function rm(icon, window, main_menu_cb)
 			notification.AddLegacy("Failed to apply change: "..varg, NOTIFY_ERROR, 5)
 			return
 		end
-		selected:UpdateData()
-		file.Write(selected_filename, selected.buf.data)
+		selected:WriteToFile(selected_filename)
 
 		if not selected_data_panel then return end
 

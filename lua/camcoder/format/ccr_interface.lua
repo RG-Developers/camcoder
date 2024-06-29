@@ -9,7 +9,7 @@ local versions = {
 
 local latest = versions[0]
 local cvt = {
-	["\0\0"]=0
+	["\0\0"]=0,
 }
 
 local ccr = {}
@@ -32,6 +32,12 @@ end
 
 function ccr.New()
 	return latest.New()
+end
+
+function ccr.ReadFromFile(path)
+	local data = file.Read("camcoder/recordings/"..path)
+	local ccrf = ccr.FromRAW(data)
+	return ccrf
 end
 
 if SERVER then
@@ -76,7 +82,7 @@ if SERVER then
 			ply.ccr_records = {}
 			local succ, varg = pcall(function()
 				for _,f in pairs(data) do
-					ply.ccr_records[#ply.ccr_records+1] = ccr.FromRAW(file.Read("camcoder/"..f, "DATA"))
+					ply.ccr_records[#ply.ccr_records+1] = ccr.ReadFromFile(f)
 				end
 				for _,v in pairs(ply.ccr_records) do v:Play() end
 			end)
@@ -130,7 +136,7 @@ if SERVER then
 					spname = ply:SteamID()
 				end
 				spname = spname:gsub('[\\\'></:%*%?"|]', '_')
-				file.Write("camcoder/"..spname.."_"..data[1]..".txt", ply.ccr_handle.buf.data)
+				ply.ccr_handle:WriteToFile(spname.."_"..data[1]..".txt")
 				return spname.."_"..data[1]..".txt"
 			end)
 			if succ then
@@ -139,7 +145,7 @@ if SERVER then
 			return ccr.Reply(ply, "save", {"fail", varg})
 		end
 		if req == "records" then
-			local files,_ = file.Find("camcoder/*", "DATA")
+			local files,_ = file.Find("camcoder/recordings/*", "DATA")
 			return ccr.Reply(ply, "records", files)
 		end
 		if req == "hash" then
@@ -153,7 +159,7 @@ if SERVER then
 		if req == "fetch" then
 			if not preferences.fetchrecords and not ply:IsSuperAdmin() then return ccr.Reply(ply, "fetch", {data[1], 0}) end
 			ply.ccr_fetch_cnt = ply.ccr_fetch_cnt or {}
-			ply.ccr_fetch_cnt[data[1]] = ccr.FromRAW(file.Read("camcoder/"..data[1]))
+			ply.ccr_fetch_cnt[data[1]] = ccr.ReadFromFile(data[1])
 			ply.ccr_fetch_cnt[data[1]].buf:Seek(0)
 			return ccr.Reply(ply, "fetch", {data[1], ply.ccr_fetch_cnt[data[1]].buf.size})
 		end
@@ -178,11 +184,47 @@ if SERVER then
 			if not preferences.pushrecords and not ply:IsSuperAdmin() then return ccr.Reply(ply, "push_c", {data[1]}) end
 			if data[3] == "end" then
 				print("Fetched recording "..data[1].." from "..ply:Name().." with size of "..#ply.ccr_push_cnt[data[1]].buf.data.." bytes...")
-				file.Write("camcoder/"..data[1], ply.ccr_push_cnt[data[1]].buf.data)
+				ply.ccr_push_cnt[data[1]]:WriteToFile(data[1])
 				return ccr.Reply(ply, "push_c", {data[1]})
 			end
 			ply.ccr_push_cnt[data[1]].buf:WriteRAW(data[2])
 			return ccr.Reply(ply, "push_c", {data[1]})
+		end
+
+		if req == "fetch_file" then
+			if not preferences.fetchfiles and not ply:IsSuperAdmin() then return ccr.Reply(ply, "fetch_file", {data[1], 0}) end
+			ply.ccr_fetch_file_cnt = ply.ccr_fetch_file_cnt or {}
+			ply.ccr_fetch_file_cnt[data[1]] = buffer.New()
+			ply.ccr_fetch_file_cnt[data[1]]:WriteRAW(file.Read("camcoder/"..data[1]))
+			ply.ccr_fetch_file_cnt[data[1]]:Seek(0)
+			return ccr.Reply(ply, "fetch_file", {data[1], ply.ccr_fetch_file_cnt[data[1]].size})
+		end
+		if req == "fetch_file_c" then
+			if not preferences.fetchfiles and not ply:IsSuperAdmin() then return ccr.Reply(ply, "fetch_file_c", {"end", "", data[1]}) end
+			if ply.ccr_fetch_file_cnt[data[1]]:Tell() >= ply.ccr_fetch_file_cnt[data[1]].size then
+				return ccr.Reply(ply, "fetch_file_c", {"end", "", data[1]})
+			end
+			local d = ply.ccr_fetch_file_cnt[data[1]]:ReadRAW(1024)
+			ply.ccr_fetch_file_cnt[data[1]]:ReadRAW(1)
+			return ccr.Reply(ply, "fetch_file_c", {"", d, data[1]})
+		end
+		if req == "push_file" then
+			if not preferences.pushfiles and not ply:IsSuperAdmin() then return ccr.Reply(ply, "push_file", {data[1]}) end
+			ply.ccr_push_file_cnt = ply.ccr_push_file_cnt or {}
+			ply.ccr_push_file_cnt[data[1]] = buffer.New()
+			ply.ccr_push_file_cnt[data[1]].data = ""
+			ply.ccr_push_file_cnt[data[1]]:Seek(0)
+			return ccr.Reply(ply, "push_file", {data[1]})
+		end
+		if req == "push_file_c" then
+			if not preferences.pushfiles and not ply:IsSuperAdmin() then return ccr.Reply(ply, "push_file_c", {data[1]}) end
+			if data[3] == "end" then
+				print("Fetched file "..data[1].." from "..ply:Name().." with size of "..#ply.ccr_push_file_cnt[data[1]].data.." bytes...")
+				file.Write("camcoder/"..data[1], ply.ccr_push_file_cnt[data[1]].data)
+				return ccr.Reply(ply, "push_file_c", {data[1]})
+			end
+			ply.ccr_push_file_cnt[data[1]]:WriteRAW(data[2])
+			return ccr.Reply(ply, "push_file_c", {data[1]})
 		end
 	end)
 end
@@ -214,6 +256,64 @@ if CLIENT then
 			local ply = net.ReadEntity()
 			local msg = net.ReadString()
 			chat.AddText(Color(255, 255, 0), ply:Nick():sub(0, #ply:Nick()-3)..": ", Color(255, 255, 255), msg)
+		end
+		if req == "voiceinit" then
+			local ply = net.ReadEntity()
+			local path = net.ReadString()
+			local start = RealTime()
+			ccr.FetchFile(path, function()
+				sound.PlayFile("data/camcoder/"..path, "noplay noblock 3d", function(station, errCode, errStr)
+					if IsValid(station) then
+						station:Play()
+						station:Set3DEnabled(true)
+						station:SetTime(RealTime() - start)
+						station:SetPos(ply:EyePos())
+						station:SetVolume(1)
+						ply.camcoder_voicechan = station
+						hook.Add("Think", tostring(ply.camcoder_voicechan), function()
+							if not IsValid(ply) then
+								hook.Remove("Think", tostring(station))
+								hook.Remove("PostPlayerDraw", tostring(station))
+								station:Stop()
+								return
+							end
+							station:SetPos(ply:EyePos())
+						end)
+						local icon = Material("icon32/unmuted.png")
+						hook.Add("PostPlayerDraw", tostring(ply.camcoder_voicechan), function(dply)
+							if dply ~= ply then return end
+							if ply:GetPos():Distance(EyePos()) > 512 then return end
+							local pos = ply:GetPos() + ply:GetUp() * (ply:OBBMaxs().z + 5)
+							--pos = pos + Vector( 0, 0, math.cos( CurTime() / 2 ) )
+							local angle = (pos - EyePos()):GetNormalized():Angle()
+							angle = Angle(0, angle.y, 0)
+							--angle.y = angle.y + math.sin(CurTime()) * 10
+							angle:RotateAroundAxis(angle:Up(), -90)
+							angle:RotateAroundAxis(angle:Forward(), 90)
+							local w, h = 64, 64
+							cam.Start3D2D(pos, angle, 0.1)
+								local l, r = ply.camcoder_voicechan:GetLevel()
+								local tot = math.min(1, (l+r))
+								surface.SetDrawColor(0, tot*255, 0, 255)
+								surface.DrawRect(-w/2, -h/2, w, h)
+								surface.SetDrawColor(255, 255, 255, 255)
+								surface.SetMaterial(icon)
+								surface.DrawTexturedRect(-w/2, -h/2, w, h)
+							cam.End3D2D()
+						end)
+					else
+						print("[CAMCODER] Error playing bot voice!", errCode, errStr)
+					end
+				end)
+			end)
+		end
+		if req == "voicestop" then
+			local ply = net.ReadEntity()
+			if not ply.camcoder_voicechan then return end
+			hook.Remove("Think", tostring(ply.camcoder_voicechan))
+			hook.Remove("PostPlayerDraw", tostring(ply.camcoder_voicechan))
+			ply.camcoder_voicechan:Stop()
+			ply.camcoder_voicechan = nil
 		end
 	end)
 	net.Receive("ccr_protocol", function()
@@ -282,7 +382,7 @@ if CLIENT then
 	end
 	function ccr.Push(f, callback)
 		local function _push()
-			local f = ccr.FromRAW(file.Read("camcoder/"..f))
+			local fil = ccr.ReadFromFile(f)
 			notification.AddProgress("UploadRecord_"..f, "Uploading recording "..f.."... 0B done")
 			ccr.Request("push", {f}, function(req, _, reply)
 				if reply[1] ~= f then return false end
@@ -290,9 +390,9 @@ if CLIENT then
 				local function cb(req, _, reply)
 					if reply[1] ~= f then return false end
 					if reply[1] == "end" then notification.Kill("UploadRecord_"..f) return callback() end
-					local d = f.buf:ReadRAW(1024)
-					f.buf:ReadRAW(1)
-					if f.buf:Tell() >= #f.buf.data then
+					local d = fil.buf:ReadRAW(1024)
+					fil.buf:ReadRAW(1)
+					if fil.buf:Tell() >= #fil.buf.data then
 						callback()
 						return ccr.Request("push_c", {f, "", "end"}, cb)
 					end
@@ -311,15 +411,15 @@ if CLIENT then
 				    done_fmt = done_fmt..u.."B"
 					notification.AddProgress("UploadRecord_"..f, "Uploading recording "..f.."... "..done_fmt.." done", done/size)
 				end
-				local d = f.buf:ReadRAW(1024)
-				f.buf:ReadRAW(1)
+				local d = fil.buf:ReadRAW(1024)
+				fil.buf:ReadRAW(1)
 				done = done + #d
 				notification.AddProgress("UploadRecord_"..f, "Uploading recording "..f.."... "..done_fmt.." done", done/size)
 				ccr.Request("push_c", {f}, cb)
 			end)
 		end
-		ccr.Hash(f, function(reply)
-			if util.CRC(file.Read("camcoder/"..f)) == reply[1] then
+		ccr.Hash("recordings/"..f, function(reply)
+			if util.CRC(file.Read("camcoder/recordings/"..f)) == reply[1] then
 				callback()
 				return
 			end
@@ -338,7 +438,7 @@ if CLIENT then
 				local function cb(req, _, reply)
 					if reply[3] ~= f then return false end
 					if reply[1] == "end" then notification.Kill("DownloadRecord_"..f) return callback() end
-					file.Append("camcoder/"..f, reply[2])
+					file.Append("camcoder/recordings/"..f, reply[2])
 					done = done + #reply[2]
 					ccr.Request("fetch_c", {f}, cb)
 				    local done_fmt = done
@@ -355,6 +455,98 @@ if CLIENT then
 					notification.AddProgress("DownloadRecord_"..f, "Downloading recording "..f.."... "..done_fmt.." done", done/size)
 				end
 				ccr.Request("fetch_c", {f}, cb)
+			end)
+		end
+		if file.Exists("camcoder/recordings/"..f, "DATA") then
+			ccr.Hash("recordings/"..f, function(reply)
+				if util.CRC(file.Read("camcoder/recordings/"..f)) == reply[1] then
+					callback()
+					return
+				end
+				_fetch()
+				return
+			end)
+			return
+		end
+		_fetch()
+	end
+	function ccr.PushFile(f, callback)
+		local function _push()
+			local fil = buffer.New()
+			fil:WriteRAW(file.Read("camcoder/"..f))
+			fil:Seek(0)
+			notification.AddProgress("UploadFile_"..f, "Uploading file "..f.."... 0B done")
+			ccr.Request("push_file", {f}, function(req, _, reply)
+				if reply[1] ~= f then return false end
+				local done = 0
+				local function cb(req, _, reply)
+					if reply[1] ~= f then return false end
+					if reply[1] == "end" then notification.Kill("UploadFile_"..f) return callback() end
+					local d = fil:ReadRAW(1024)
+					fil:ReadRAW(1)
+					if fil:Tell() >= #fil.data then
+						callback()
+						return ccr.Request("push_file_c", {f, "", "end"}, cb)
+					end
+					done = done + #d
+					ccr.Request("push_file_c", {f, d, ""}, cb)
+				    local done_fmt = done
+				    local u = ""
+				    for _,unit in pairs({"", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"}) do
+				    	u = unit
+				    	if math.abs(done_fmt) < 1024.0 then
+				    		break
+				    	end
+				    	done_fmt = done_fmt / 1024.0
+				    end
+				    done_fmt = string.format("%.2f", done_fmt)
+				    done_fmt = done_fmt..u.."B"
+					notification.AddProgress("UploadFile_"..f, "Uploading file "..f.."... "..done_fmt.." done", done/size)
+				end
+				local d = fil:ReadRAW(1024)
+				fil:ReadRAW(1)
+				done = done + #d
+				notification.AddProgress("UploadRecord_"..f, "Uploading file "..f.."... "..done_fmt.." done", done/size)
+				ccr.Request("push_c", {f}, cb)
+			end)
+		end
+		ccr.Hash(f, function(reply)
+			if util.CRC(file.Read("camcoder/"..f)) == reply[1] then
+				callback()
+				return
+			end
+			_push()
+			return
+		end)
+	end
+	function ccr.FetchFile(f, callback)
+		local function _fetch()
+			notification.AddProgress("DownloadFile_"..f, "Downloading recording "..f.."... 0B done")
+			ccr.Request("fetch_file", {f}, function(req, _, reply)
+				if reply[1] ~= f then return false end
+				local size = reply[2]
+				local done = 0
+				file.Write("camcoder/"..f, "")
+				local function cb(req, _, reply)
+					if reply[3] ~= f then return false end
+					if reply[1] == "end" then notification.Kill("DownloadFile_"..f) return callback() end
+					file.Append("camcoder/"..f, reply[2])
+					done = done + #reply[2]
+					ccr.Request("fetch_file_c", {f}, cb)
+				    local done_fmt = done
+				    local u = ""
+				    for _,unit in pairs({"", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"}) do
+				    	u = unit
+				    	if math.abs(done_fmt) < 1024.0 then
+				    		break
+				    	end
+				    	done_fmt = done_fmt / 1024.0
+				    end
+				    done_fmt = string.format("%.2f", done_fmt)
+				    done_fmt = done_fmt..u.."B"
+					notification.AddProgress("DownloadFile_"..f, "Downloading file "..f.."... "..done_fmt.." done", done/size)
+				end
+				ccr.Request("fetch_file_c", {f}, cb)
 			end)
 		end
 		if file.Exists("camcoder/"..f, "DATA") then

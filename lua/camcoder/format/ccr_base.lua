@@ -2,6 +2,8 @@ if _G.CAMCODER_INCLUDES.base then return _G.CAMCODER_INCLUDES.base end
 
 local buffer = include("camcoder/format/buffer.lua")
 
+local compress_threshold = 512
+
 local ccr_file = {sections={}}
 local ccr_section = {buf=nil}
 

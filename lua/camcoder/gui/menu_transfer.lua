@@ -71,7 +71,7 @@ local function pm(icon, window, main_menu_cb)
 		for k, line in pairs(cc_localselect:GetLines()) do
 		    cc_localselect:RemoveLine(line:GetID())
 		end
-		local list,_ = file.Find("camcoder/*", "DATA")
+		local list,_ = file.Find("camcoder/recordings/*", "DATA")
 		for _,file in pairs(list) do
 			cc_localselect:AddLine(file)
 		end
