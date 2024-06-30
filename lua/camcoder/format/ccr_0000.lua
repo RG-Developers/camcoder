@@ -270,6 +270,10 @@ function ccr_file:Stop()
 
 	hook.Remove("StartCommand", "CamCoder_Recorder_"..self.ply:Name())
 	hook.Remove("PlayerSay", "CamCoder_Recorder_"..self.ply:Name())
+	net.Start("ccr_protocol_u")
+		net.WriteString("voicestop")
+		net.WriteEntity(self.ply)
+	net.Broadcast()
 	self.ply = nil
 	self.recording = false
 	self:UpdateData()
@@ -334,6 +338,14 @@ function ccr_file:Record(ply_to_rec)
 		map = game.GetMap(),
 		voicepath = ply_to_rec.camcoder_voicepath or ""
 	})
+
+	timer.Simple(0.5, function()
+		net.Start("ccr_protocol_u")
+			net.WriteString("voiceinit")
+			net.WriteEntity(ply_to_rec)
+			net.WriteString(ply_to_rec.camcoder_voicepath or "")
+		net.Broadcast()
+	end)
 
 	local laststate = {
 		lastpos = self.ply:GetPos(),

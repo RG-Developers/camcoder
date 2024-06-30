@@ -76,12 +76,12 @@ local function rm(icon, window, main_menu_cb)
 	cc_label:SetFont("Trebuchet24")
 	cc_label:Dock(TOP)
 
-	local cc_togglerec, cc_save, recstart, recend, recording
+	local cc_togglerec, cc_save, recstart, recend, recording, cc_voicepath
 	local function start_recording()
 		cc_tomenu:SetEnabled(false)
 		cc_save:SetEnabled(false)
 		cc_label:SetText("Requesting record start...")
-		format.StartRecord(function()
+		format.StartRecord(cc_voicepath:GetValue(), function()
 			for k,v in pairs(selected) do
 				v()
 				selected[k] = format.ReadFromFile(k):PlayPreview(true)
@@ -160,11 +160,13 @@ local function rm(icon, window, main_menu_cb)
 	end)
 	cc_save:SetEnabled(false)
 
-
-	
-	local filename = window:Add("DTextEntry")
-	filename:Dock(BOTTOM)
-	filename:DockMargin(5, 5, 5, 5)
+	local cc_label_voicepath = window:Add("DLabel")
+	cc_label_voicepath:SetText("Path to voice audio relative to data/camcoder (nothing to not include)")
+	cc_label_voicepath:SetFont("Trebuchet18")
+	cc_label_voicepath:Dock(TOP)
+	cc_voicepath = window:Add("DTextEntry")
+	cc_voicepath:Dock(TOP)
+	cc_voicepath:DockMargin(5, 5, 5, 5)
 
 	local cc_label_select = window:Add("DLabel")
 	cc_label_select:SetText("Available")

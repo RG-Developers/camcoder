@@ -66,6 +66,7 @@ if SERVER then
 			if not preferences.othersrecord and not ply:IsSuperAdmin() then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				local handle = ccr.New()
+				ply.camcoder_voicepath = data[1]
 				handle:Record(ply)
 				return handle
 			end)
@@ -327,8 +328,8 @@ if CLIENT then
 			end
 		end
 	end)
-	function ccr.StartRecord(ok_cb, fl_cb)
-		ccr.Request("record", {}, function(req, _, reply)
+	function ccr.StartRecord(voicepath, ok_cb, fl_cb)
+		ccr.Request("record", {voicepath}, function(req, _, reply)
 			if reply[1] == "ok" then
 				return ok_cb(reply)
 			end
