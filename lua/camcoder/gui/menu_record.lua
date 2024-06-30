@@ -23,7 +23,7 @@ local function record_save(icon, window, ftime, sv_cb, bk_cb)
 	browser:Dock(FILL)
 
 	browser:SetPath("DATA")
-	browser:SetBaseFolder("camcoder")
+	browser:SetBaseFolder("camcoder/recordings")
 	browser:SetOpen(true)
 	browser:SetCurrentFolder("")
 
@@ -159,6 +159,12 @@ local function rm(icon, window, main_menu_cb)
 		end)
 	end)
 	cc_save:SetEnabled(false)
+
+
+	
+	local filename = window:Add("DTextEntry")
+	filename:Dock(BOTTOM)
+	filename:DockMargin(5, 5, 5, 5)
 
 	local cc_label_select = window:Add("DLabel")
 	cc_label_select:SetText("Available")

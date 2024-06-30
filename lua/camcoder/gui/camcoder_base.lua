@@ -4,7 +4,7 @@ local dt = {
 	title		= "Camcoder",
 	icon		= "camcoder/gui/icon.png",
 	width		= ScrW()/3,
-	height		= ScrH()/2,
+	height		= ScrH()/3*2,
 	onewindow	= false,
 	init		= function(icon, window)
 		if game.SinglePlayer() and attempts < 13 then

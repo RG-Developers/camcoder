@@ -1,35 +1,38 @@
 Camcoder Versions
 ===================
 
-Документация объекта версии 0
+Version 0 object documentation
 -----------------------------
 
-	``ccr_0000.FromRAW(string raw)``
-	Открывает данную строку как ccr_file версии 0.
+	``ccr_0000.FromRAW(string raw)``.
+	Opens this string as a version 0 ccr_file.
 
-	``ccr_0000.New()``
-	Создаёт новый пустой ccr_file
+	``ccr_0000.New()``.
+	Creates a new empty ccr_file
 
 	``ccr_file_0000:ReadSection()``
-	Читает одну секцию из ccr_file
+	Reads one section from a ccr_file
 
 	``ccr_file_0000:WriteSection(table section)``
-	Записывает одну секцию в ccr_file
+	Writes one section to ccr_file
 
 	``ccr_file_0000:SeekSection(number pointer)``
-	Отправляется к указанной секции
+	Goes to the specified section
 
 	``ccr_file_0000:TellSection()``
-	Возвращает указатель на текущую секцию
+	Returns a pointer to the current section
 
 	``ccr_file_0000:Stop()``
-	Останавливает запись или воспроизведение ccr_file
+	Stops recording or playback of a ccr_file
 
 	``ccr_file_0000:Record(Player ply)``
-	Начинает запись действий игрока
+	Starts recording player actions
 
 	``ccr_file_0000:Play()``
-	Начинает воспроизведение записи.
+	Starts playback of the recording.
+
+	``ccr_file_0000:WriteToFile(string path)``
+	Saves recording contents to specified path, relative to data/camcoder/recordings
 
 	``ccr_file_0000:PlayPreview(boolean stop_after_end)``
-	Только для клиента. Начинает воспроизведение превью записи, возвращает функцию для остановки превью
+	Client only. Starts playing a preview of the record, returns a function to stop the preview
