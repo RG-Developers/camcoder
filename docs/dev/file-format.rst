@@ -1,78 +1,79 @@
 ..
-   Выключи перенос строк при редактировании.
+   Disable word wrapping while editing.
 
 CCR - CamCoder Recording
 ========================
 
-Документация формата файла
+File format documentation
 --------------------------
 
-Версии протоколов
+Format versions
 ~~~~~~~~~~~~~~~~~
 
-=============== ==============
-Версия Camcoder Версия формата
-=============== ==============
-0.1b            ``00 00``
-=============== ==============
+================ ==============
+Camcoder Version Format version
+================ ==============
+0.1b - 0.9b      ``00 00``
+================ ==============
 
-Общий вид
-~~~~~~~~~
+Overall info
+~~~~~~~~~~~~
 
-В каждом CCR файле есть как минимум три секции:
+In any given file, there should be at least three sections:
 
-#. Заголовок
-#. Инициализатор
-#. Фрейм
+#. Header
+#. Initialiser
+#. Delimeter Frame
 
-Разные имплементации и версии формата могут добавлять новые секции, но данные три обязательны для любой имплементации.
+Different versions and implementations may add new types of sections and should have at least these three
 
-Секция
-~~~~~~
+Section
+~~~~~~~
 
-Каждая секция сопровождается её идентификационным номером (sID) и размером в байтах. sID должен занимать ровно 1 байт. Его размер не включается к остальному размеру секции. Размер секции должен занимать ровно 4 байта. На момент версии 0.1b существует три вида секций:
+Any given section is identified with it's universal Section ID and it's size in bytes. Section ID (sID) is writte as 1 byte unsigned integer, and Section Size (sSZ) is written as 4 byte unsigned integer and does not count itself and sID.
+As of 0.1b, there are three types of sections:
 
-#. Заголовок (sID = 0x00)
-#. Инициализатор (sID = 0x01)
-#. Фреймы (sID = 0x02) Пример секции размером 4 байта и sID равным 0xFF, заполненной нулями:
+#. Header (sID = 0x00)
+#. Initialiser (sID = 0x01)
+#. Frames (sID = 0x02+)
+
+Example of section, with sID = 0xFF, sSZ = 4, filled with 0s:
 
 ::
 
    FF 00 00 00 04 00 00 00 00
 
-и в "распакованном" виде:
+==== ===============
+Name Data
+==== ===============
+sID  ``FF``
+sSZ  ``00 00 00 04``
+sDT  ``00 00 00 00``
+==== ===============
 
-=== ===============
-Имя Данные
-=== ===============
-sID ``FF``
-sSZ ``00 00 00 04``
-sDT ``00 00 00 00``
-=== ===============
-
-Секция: Заголовок
-~~~~~~~~~~~~~~~~~
+Section: Header
+~~~~~~~~~~~~~~~
 
 sID = 0x00
 
-Данная секция отвечает за идентификацию CCR файла и его версии протокола. На момент 0.1b занимает 6 байт: Состоит из:
+Identifies CCR version and validity
 
 ======= ==============
-Размер  Данные
+Size    Data
 ======= ==============
-4 байта строка "CCRF"
-2 байта версия формата
+4 bytes literal "CCRF"
+2 bytes format version
 ======= ==============
 
-Пример:
+Example:
 
-=== =====================
-Имя Данные
-=== =====================
-sID ``00``
-sSZ ``00 00 00 06``
-sDT ``43 43 52 46 00 00``
-=== =====================
+==== =====================
+Name Data
+==== =====================
+sID  ``00``
+sSZ  ``00 00 00 06``
+sDT  ``43 43 52 46 00 00``
+==== =====================
 
 Секция: Инициализатор
 ~~~~~~~~~~~~~~~~~~~~~

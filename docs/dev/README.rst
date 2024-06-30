@@ -1,5 +1,5 @@
-Camcoder документация разработчика
+Camcoder developer documentation.
 ==================================
 
-Это документация разработчика.
-Здесь находится вся документация связанная с разработкой Camcoder и связанных с ним инструментов
+It is a developer documentation
+All info about camcoder's architecture and API is located in this directory.
