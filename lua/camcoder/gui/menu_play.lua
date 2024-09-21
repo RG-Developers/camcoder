@@ -1,6 +1,7 @@
 local utils = include("camcoder/gui/utils.lua")
 local preferences = include("camcoder/format/preferences.lua")
 local format = include("camcoder/format/ccr_interface.lua")
+local format_camera = include("camcoder/format/ccr_camera.lua")
 
 local function mk_btn(window, text, dock, onclick)
 	local btn = window:Add("DButton")
@@ -32,7 +33,7 @@ local function rm(icon, window, main_menu_cb)
 	cc_label:SetFont("Trebuchet18")
 	cc_label:Dock(TOP)
 
-	local cc_fileselect, cc_fileselected
+	local cc_fileselect, cc_fileselected, cc_fileselected_camera
 
 	local cc_togglerep, replaying
 	local function start_replaying()
@@ -49,6 +50,16 @@ local function rm(icon, window, main_menu_cb)
 			cc_togglerep:SetText("Stop replaying")
 			cc_togglerep:SetEnabled(true)
 		end, function(d)
+			format_camera.Stop(function() end, function(d) end)
+			print("[CAMCODER] "..d[2])
+			cc_label:SetText("Failed to start replay: "..d[2])
+			cc_togglerep:SetText("Start replaying")
+			cc_togglerep:SetEnabled(true)
+			cc_tomenu:SetEnabled(true)
+		end)
+		format_camera.Play(cc_fileselected_camera:GetText():sub(28), function()
+		end, function(d)
+			format.Stop(function() end, function(d) end)
 			print("[CAMCODER] "..d[2])
 			cc_label:SetText("Failed to start replay: "..d[2])
 			cc_togglerep:SetText("Start replaying")
@@ -76,6 +87,11 @@ local function rm(icon, window, main_menu_cb)
 			end)
 			cc_togglerep:SetText("Stop replaying")
 			cc_togglerep:SetEnabled(true)
+		end)
+		format_camera.Stop(function()
+
+		end, function(d)
+
 		end)
 	end
 	cc_togglerep = mk_btn(window, "Start replaying", TOP, function()
@@ -108,6 +124,36 @@ local function rm(icon, window, main_menu_cb)
 	cc_fileselected:Dock(TOP)
 	cc_fileselected:SetMultiSelect(false)
 	cc_fileselected:AddColumn("Filename")
+
+	local cc_label_select_camera = window:Add("DLabel")
+	cc_label_select_camera:SetText("Camera recordings")
+	cc_label_select_camera:SetFont("Trebuchet18")
+	cc_label_select_camera:Dock(TOP)
+	local cc_fileselect_camera = window:Add("DListView")
+	cc_fileselect_camera:SetSize(window:GetWide(), ScrH()/9)
+	cc_fileselect_camera:Dock(TOP)
+	cc_fileselect_camera:SetMultiSelect(false)
+	cc_fileselect_camera:AddColumn("Filename")
+	cc_fileselect_camera:AddLine("fetching...")
+
+	cc_fileselected_camera = window:Add("DLabel")
+	cc_fileselected_camera:SetText("Selected camera recording: none")
+	cc_fileselected_camera:SetFont("Trebuchet18")
+	cc_fileselected_camera:Dock(TOP)
+
+	format_camera.ListRecords(function(list)
+		cc_fileselect_camera:RemoveLine(1)
+		for _,file in pairs(list) do
+			cc_fileselect_camera:AddLine(file)
+		end
+	end)
+
+	function cc_fileselect_camera:OnRowSelected(index, pnl)
+		if replaying then return end
+		local rname = pnl:GetColumnText(1)
+		if rname == "fetching..." then return end
+		cc_fileselected_camera:SetText("Selected camera recording: "..rname)
+	end
 
 	function cc_fileselect:OnRowSelected(index, pnl)
 		if replaying then return end

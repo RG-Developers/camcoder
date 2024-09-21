@@ -10,6 +10,13 @@ local function menu(icon, window)
 		utils.clear_window(window)
 		include("camcoder/gui/menu_record.lua").menu(icon, window, menu)
 	end
+	local cc_recmenu = window:Add("DButton")
+	cc_recmenu:SetText("Camera record menu")
+	utils.style_button(cc_recmenu)
+	function cc_recmenu:DoClick()
+		utils.clear_window(window)
+		include("camcoder/gui/menu_camera.lua").menu(icon, window, menu)
+	end
 	local cc_repmenu = window:Add("DButton")
 	cc_repmenu:SetText("Replay menu")
 	utils.style_button(cc_repmenu)

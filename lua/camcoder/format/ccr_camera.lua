@@ -1,15 +1,15 @@
---if _G.CAMCODER_INCLUDES.interface then return _G.CAMCODER_INCLUDES.interface end
+--if _G.CAMCODER_INCLUDES.caminterface then return _G.CAMCODER_INCLUDES.caminterface end
 
 local base = include("camcoder/format/ccr_base.lua")
 local preferences = include("camcoder/format/preferences.lua")
 
 local versions = {
-	[0]=include("camcoder/format/ccr_0000.lua")
+	[0]=include("camcoder/format/ccr_0000c.lua")
 }
 
 local latest = versions[0]
 local cvt = {
-	["\0\0"]=0,
+	["\8\0"]=0,
 }
 
 local ccr = {}
@@ -35,38 +35,30 @@ function ccr.New()
 end
 
 function ccr.ReadFromFile(path)
-	local data = file.Read("camcoder/recordings/"..path)
+	local data = file.Read("camcoder/camerarecs/"..path)
 	local ccrf = ccr.FromRAW(data)
 	return ccrf
 end
 
 if SERVER then
-	hook.Add("ShouldCollide", "camcoder_no_bot_collisions", function(ent1, ent2)
-		if preferences.botcollideply and preferences.botcollideall then return end
-		if ent1:IsPlayer() and ent2:IsPlayer() and (ent1.camcoder_bot or ent2.camcoder_bot) then return false end
-		if preferences.botcollideall then return end
-		if (ent1:IsPlayer() and ent1.camcoder_bot) or (ent2:IsPlayer() and ent2.camcoder_bot) then return false end
-	end)
-
-	util.AddNetworkString("ccr_protocol")
-	util.AddNetworkString("ccr_protocol_u")
+	util.AddNetworkString("ccr_protocol_cam")
+	util.AddNetworkString("ccr_protocol_cam_u")
 	function ccr.Reply(who, req, data)
-		net.Start("ccr_protocol")
+		net.Start("ccr_protocol_cam")
 			net.WriteString(req)
 			local d = util.Compress(util.TableToJSON(data))
 			net.WriteUInt(#d, 16)
 			net.WriteData(d)
 		net.Send(who)
 	end
-	net.Receive("ccr_protocol", function(_, ply)
+	net.Receive("ccr_protocol_cam", function(_, ply)
 		--if not ply:IsSuperAdmin() then return end
 		local req = net.ReadString()
 		local data = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
 		if req == "record" then
-			if not preferences.othersrecord and not ply:IsSuperAdmin() then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
+			if not preferences.othersrecordcamera and not ply:IsSuperAdmin() then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				local handle = ccr.New()
-				ply.camcoder_voicepath = data[1]
 				handle:Record(ply)
 				return handle
 			end)
@@ -77,15 +69,12 @@ if SERVER then
 			return ccr.Reply(ply, "record", {"fail", varg})
 		end
 		if req == "play" then
-			if not preferences.othersreplay and not ply:IsSuperAdmin() then return ccr.Reply(ply, "play", {"fail", "not allowed"}) end
-			ply.ccr_records = ply.ccr_records or {}
-			for _,v in pairs(ply.ccr_records) do pcall(function() v:Stop() end) end
-			ply.ccr_records = {}
+			if not preferences.othersreplaycamera and not ply:IsSuperAdmin() then return ccr.Reply(ply, "play", {"fail", "not allowed"}) end
+			pcall(function() ply.ccr_record_camera:Stop() end)
+			local f = data[1]
 			local succ, varg = pcall(function()
-				for _,f in pairs(data) do
-					ply.ccr_records[#ply.ccr_records+1] = ccr.ReadFromFile(f)
-				end
-				for _,v in pairs(ply.ccr_records) do v:Play() end
+				ply.ccr_record_camera = ccr.ReadFromFile(f)
+				ply.ccr_record_camera:Play(ply)
 			end)
 			if succ then
 				return ccr.Reply(ply, "play", {"ok"})
@@ -93,11 +82,9 @@ if SERVER then
 			return ccr.Reply(ply, "play", {"fail", varg})
 		end
 		if req == "stop_replay" then
-			if not preferences.othersreplay and not ply:IsSuperAdmin() and not ply.ccr_records then return ccr.Reply(ply, "stop_replay", {"fail", "not allowed"}) end
+			if not preferences.othersreplaycamera and not ply:IsSuperAdmin() and not ply.ccr_record_camera then return ccr.Reply(ply, "stop_replay", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
-				for k,v in pairs(ply.ccr_records) do
-					pcall(function() v:Stop() end)
-				end
+				ply.ccr_record_camera:Stop()
 			end)
 			if succ then
 				return ccr.Reply(ply, "stop_replay", {"ok"})
@@ -105,7 +92,7 @@ if SERVER then
 			return ccr.Reply(ply, "stop_replay", {"fail", varg})
 		end
 		if req == "stop_record" then
-			if not preferences.othersrecord and not ply:IsSuperAdmin() and not ply.ccr_handle.recording then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
+			if not preferences.othersrecordcamera and not ply:IsSuperAdmin() and not ply.ccr_handle.recording then return ccr.Reply(ply, "record", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				ply.ccr_handle:Stop()
 			end)
@@ -115,7 +102,7 @@ if SERVER then
 			return ccr.Reply(ply, "stop_record", {"fail", varg})
 		end
 		if req == "save" then
-			if not preferences.othersreplay and not ply:IsSuperAdmin() then return ccr.Reply(ply, "save", {"fail", "not allowed"}) end
+			if not preferences.othersreplaycamera and not ply:IsSuperAdmin() then return ccr.Reply(ply, "save", {"fail", "not allowed"}) end
 			local succ, varg = pcall(function()
 				if not ply.ccr_handle then error("nothing was recorded") end
 				if ply.ccr_handle.recording or ply.ccr_handle.replaying then error("recording is being used") end
@@ -146,11 +133,11 @@ if SERVER then
 			return ccr.Reply(ply, "save", {"fail", varg})
 		end
 		if req == "records" then
-			local files,_ = file.Find("camcoder/recordings/*", "DATA")
+			local files,_ = file.Find("camcoder/camerarecs/*", "DATA")
 			return ccr.Reply(ply, "records", files)
 		end
 		if req == "hash" then
-			return ccr.Reply(ply, "hash", {util.CRC(file.Read("camcoder/"..data[1]) or "")})
+			return ccr.Reply(ply, "hash", {util.CRC(file.Read("camcoder/"..data[1]))})
 		end
 		if req == "delete" then
 			if not preferences.pushrecords and not ply:IsSuperAdmin() then return ccr.Reply(ply, "delete", {}) end
@@ -244,80 +231,17 @@ if CLIENT then
 		requests[#requests+1] = {
 			req, data, cb
 		}
-		net.Start("ccr_protocol")
+		net.Start("ccr_protocol_cam")
 			net.WriteString(req)
 			local d = util.Compress(util.TableToJSON(data))
 			net.WriteUInt(#d, 16)
 			net.WriteData(d)
 		net.SendToServer()
 	end
-	net.Receive("ccr_protocol_u", function()
+	net.Receive("ccr_protocol_cam_u", function()
 		local req = net.ReadString()
-		if req == "chat" then
-			local ply = net.ReadEntity()
-			local msg = net.ReadString()
-			chat.AddText(Color(255, 255, 0), ply:Nick():sub(0, #ply:Nick()-3)..": ", Color(255, 255, 255), msg)
-		end
-		if req == "voiceinit" then
-			local ply = net.ReadEntity()
-			local path = net.ReadString()
-			local start = RealTime()
-			ccr.FetchFile(path, function()
-				sound.PlayFile("data/camcoder/"..path, "noplay noblock 3d", function(station, errCode, errStr)
-					if IsValid(station) then
-						station:Play()
-						station:Set3DEnabled(true)
-						station:SetTime(RealTime() - start)
-						station:SetPos(ply:EyePos())
-						station:SetVolume(1)
-						ply.camcoder_voicechan = station
-						hook.Add("Think", tostring(ply.camcoder_voicechan), function()
-							if not IsValid(ply) then
-								hook.Remove("Think", tostring(station))
-								hook.Remove("PostPlayerDraw", tostring(station))
-								station:Stop()
-								return
-							end
-							station:SetPos(ply:EyePos())
-						end)
-						local icon = Material("icon32/unmuted.png")
-						hook.Add("PostPlayerDraw", tostring(ply.camcoder_voicechan), function(dply)
-							if dply ~= ply then return end
-							if ply:GetPos():Distance(EyePos()) > 512 then return end
-							local pos = ply:GetPos() + ply:GetUp() * (ply:OBBMaxs().z + 5)
-							--pos = pos + Vector( 0, 0, math.cos( CurTime() / 2 ) )
-							local angle = (pos - EyePos()):GetNormalized():Angle()
-							angle = Angle(0, angle.y, 0)
-							--angle.y = angle.y + math.sin(CurTime()) * 10
-							angle:RotateAroundAxis(angle:Up(), -90)
-							angle:RotateAroundAxis(angle:Forward(), 90)
-							local w, h = 64, 64
-							cam.Start3D2D(pos, angle, 0.1)
-								local l, r = ply.camcoder_voicechan:GetLevel()
-								local tot = math.min(1, (l+r))
-								surface.SetDrawColor(0, tot*255, 0, 255)
-								surface.DrawRect(-w/2, -h/2, w, h)
-								surface.SetDrawColor(255, 255, 255, 255)
-								surface.SetMaterial(icon)
-								surface.DrawTexturedRect(-w/2, -h/2, w, h)
-							cam.End3D2D()
-						end)
-					else
-						print("[CAMCODER] Error playing bot voice!", errCode, errStr)
-					end
-				end)
-			end)
-		end
-		if req == "voicestop" then
-			local ply = net.ReadEntity()
-			if not ply.camcoder_voicechan then return end
-			hook.Remove("Think", tostring(ply.camcoder_voicechan))
-			hook.Remove("PostPlayerDraw", tostring(ply.camcoder_voicechan))
-			ply.camcoder_voicechan:Stop()
-			ply.camcoder_voicechan = nil
-		end
 	end)
-	net.Receive("ccr_protocol", function()
+	net.Receive("ccr_protocol_cam", function()
 		local req = net.ReadString()
 		local ndata = util.JSONToTable(util.Decompress(net.ReadData(net.ReadUInt(16))))
 		for k,v in pairs(table.Copy(requests)) do
@@ -328,8 +252,8 @@ if CLIENT then
 			end
 		end
 	end)
-	function ccr.StartRecord(voicepath, ok_cb, fl_cb)
-		ccr.Request("record", {voicepath}, function(req, _, reply)
+	function ccr.StartRecord(ok_cb, fl_cb)
+		ccr.Request("record", {}, function(req, _, reply)
 			if reply[1] == "ok" then
 				return ok_cb(reply)
 			end
@@ -352,8 +276,8 @@ if CLIENT then
 			return fl_cb(reply)
 		end)
 	end
-	function ccr.Play(recs, ok_cb, fl_cb)
-		ccr.Request("play", recs, function(req, _, reply)
+	function ccr.Play(rec, ok_cb, fl_cb)
+		ccr.Request("play", {rec}, function(req, _, reply)
 			if reply[1] == "ok" then
 				return ok_cb(reply)
 			end
@@ -552,7 +476,7 @@ if CLIENT then
 		end
 		if file.Exists("camcoder/"..f, "DATA") then
 			ccr.Hash(f, function(reply)
-				if util.CRC(file.Read("camcoder/"..f) or "") == reply[1] then
+				if util.CRC(file.Read("camcoder/"..f)) == reply[1] then
 					callback()
 					return
 				end
@@ -565,6 +489,6 @@ if CLIENT then
 	end
 end
 
-_G.CAMCODER_INCLUDES.interface = ccr
+_G.CAMCODER_INCLUDES.caminterface = ccr
 
 return ccr

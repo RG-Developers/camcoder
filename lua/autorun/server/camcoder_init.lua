@@ -23,3 +23,4 @@ for k,v in pairs(cs_files) do AddCSLuaFile(v) end
 _G.CAMCODER_INCLUDES = _G.CAMCODER_INCLUDES or {}
 
 include("camcoder/format/ccr_interface.lua")
+include("camcoder/format/ccr_camera.lua")
